@@ -220,7 +220,12 @@
       return r * orden.dir || cmp(a.nombre_estacion, b.nombre_estacion);
     });
     const tb = $("#tabla tbody");
-    if (!ord.length) { tb.innerHTML = `<tr><td colspan="8" class="vacio">Ninguna estación coincide con los filtros.</td></tr>`; return; }
+    if (!ord.length) {
+      const form = urlSegura(CFG.formUrl);
+      tb.innerHTML = `<tr><td colspan="8" class="vacio">${DATA.length ? "Ninguna estación coincide con los filtros."
+        : "Todavía no hay estaciones publicadas." + (form ? ` <a href="${esc(form)}" target="_blank" rel="noopener">¡Carga la primera!</a>` : "")}</td></tr>`;
+      return;
+    }
     tb.innerHTML = ord.map((e) => `<tr data-i="${e._i}">
       <td><span class="dot" style="background:${HEX[e.tipo_estacion] || "#495057"}"></span>${esc(e.nombre_estacion)}</td>
       <td>${esc(e.pais)}</td><td>${esc(e.localidad)}</td><td>${esc(e.red)}</td><td>${esc(e.tipo_estacion)}</td>
