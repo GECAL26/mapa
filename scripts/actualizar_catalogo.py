@@ -42,6 +42,19 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 DATA = RAIZ / "sitio" / "data"
 IMPORTADAS = DATA / "importadas"
+# Orden de prioridad de los catálogos importados: cuando dos fuentes describen la misma
+# estación (misma clase de medición y a <200 m, o mismo nombre a <3 km) se queda la primera.
+# Las fuentes más detalladas van primero. Las que no figuran acá se procesan al final.
+PRIORIDAD = ["relevamiento_gecal", "mira_chile", "sinaica", "cetesb", "monitorar", "senamhi",
+             "sinca", "openaq", "noaa_isd"]
+DIST_SUPERADA_M = 200
+DIST_SUPERADA_NOMBRE_M = 3000
+DIST_SUPERADA_METEO_M = 1500  # dos estaciones solo meteorológicas (p. ej. el mismo aeropuerto en ISD y en otra red)
+
+
+def clases(tipo: str) -> set[str]:
+    t = norm(tipo)
+    return ({"aire"} if "aire" in t else set()) | ({"meteo"} if "meteorolog" in t else set())
 FUENTE_FORM = "Formulario GECAL"
 
 # Texto de las preguntas del formulario -> clave interna (mismo mapeo que crear_formulario.gs)
@@ -266,7 +279,7 @@ def a_claves(fila: dict) -> dict:
 
 
 def procesar(filas: list[dict], fuente_defecto: str = FUENTE_FORM, vistas: list[dict] | None = None,
-             etiqueta_origen: str = "") -> tuple[list[dict], list[str], list[str]]:
+             etiqueta_origen: str = "", superadas: dict | None = None) -> tuple[list[dict], list[str], list[str]]:
     errores: list[str] = []
     avisos: list[str] = []
     paises = cargar_paises()
@@ -348,6 +361,25 @@ def procesar(filas: list[dict], fuente_defecto: str = FUENTE_FORM, vistas: list[
         vars_ = listas["contaminantes"] + listas["meteorologia"]
         if not vars_ and fuente == FUENTE_FORM:
             avisos.append(f"{etiqueta}: no indica ninguna variable medida")
+
+        if fuente != FUENTE_FORM and superadas is not None:
+            mis_clases, mi_nombre = clases(f["tipo_estacion"]), norm(f["nombre_estacion"])
+            gana = None
+            for previa in vistas:
+                if previa["fuente"] == fuente:
+                    continue
+                d = haversine_m(lat, lon, previa["latitud"], previa["longitud"])
+                mismo_nombre = mi_nombre == norm(previa["nombre_estacion"])
+                misma_clase = mis_clases <= clases(previa["tipo_estacion"])
+                # mismo nombre y casi el mismo punto: es la misma estación aunque cada fuente liste otras variables
+                ambas_meteo = mis_clases == {"meteo"} == clases(previa["tipo_estacion"])
+                if (mismo_nombre and d < DIST_SUPERADA_M) or (ambas_meteo and d < DIST_SUPERADA_METEO_M) or (misma_clase and (
+                        d < DIST_SUPERADA_M or (mismo_nombre and d < DIST_SUPERADA_NOMBRE_M))):
+                    gana = previa
+                    break
+            if gana:
+                superadas[f"{fuente} → {gana['fuente']}"] = superadas.get(f"{fuente} → {gana['fuente']}", 0) + 1
+                continue
 
         codigo = f.get("codigo", "")
         for previa in vistas + nuevas:
@@ -449,9 +481,11 @@ def main() -> int:
     errores: list[str] = []
     avisos: list[str] = []
     resumen = []
-    for ruta in sorted(IMPORTADAS.glob("*.csv")):
+    superadas: dict[str, int] = {}
+    pos = lambda r: PRIORIDAD.index(r.stem) if r.stem in PRIORIDAD else len(PRIORIDAD)
+    for ruta in sorted(IMPORTADAS.glob("*.csv"), key=lambda r: (pos(r), r.stem)):
         nuevas, e, w = procesar(leer_csv(str(ruta)), fuente_defecto=ruta.stem, vistas=estaciones,
-                                etiqueta_origen=f"{ruta.name} ")
+                                etiqueta_origen=f"{ruta.name} ", superadas=superadas)
         estaciones += nuevas; errores += e; avisos += w
         resumen.append(f"{len(nuevas)} de {ruta.name}")
     if a.origen:
@@ -463,6 +497,9 @@ def main() -> int:
     escribir(estaciones, Path(a.destino))
 
     print(f"✔ {len(estaciones)} estaciones publicadas en {a.destino} ({', '.join(resumen)})")
+    if superadas:
+        print("  omitidas por estar ya en una fuente de mayor prioridad: "
+              + ", ".join(f"{k}: {v}" for k, v in sorted(superadas.items())))
     if avisos:
         print(f"\n⚠ {len(avisos)} advertencias (se publicaron igual):")
         for x in avisos:

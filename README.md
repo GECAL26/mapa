@@ -95,12 +95,12 @@ enlace = guía de descarga de la red en el repositorio de MIRA Chile.
 | CETESB QUALAR | Brasil (São Paulo) | 75 | Calidad del aire | `ropensci/qualR` |
 | MonitorAr-Rio | Brasil (Rio de Janeiro) | 8 | Calidad del aire y meteorología | `ropensci/qualR` |
 | SENAMHI | Perú (Lima) | 18 | Calidad del aire y meteorológicas automáticas | `quishqa/limaair` |
-| SINCA (MMA) | Chile | 205 | Calidad del aire | `franciscoxaxo/AtmChile` (GPL-3) |
+| MIRA Chile | Chile (Arica a Atacama) | 862 | Meteorológicas y de calidad del aire, con variables y estado | `suraurora/mira-chile` (`importar_mira_chile.py`) |
+| SINCA (MMA) | Chile | 151 (+54 ya en MIRA) | Calidad del aire | `franciscoxaxo/AtmChile` (GPL-3) |
 | NOAA ISD | 27 países | 1013 | Meteorológicas sinópticas/aeronáuticas activas | `ropensci/GSODR` |
 | OpenAQ | varios | 172 | Calidad del aire (equipos de referencia) | API de OpenAQ (`importar_openaq.py`) |
 
-Chile se carga desde SINCA y NOAA ISD. Cuando MIRA Chile esté completo puede reemplazarlos o
-complementarlos (el validador avisa de los duplicados). En la tabla de SINCA hay tres pares de
+Chile se carga desde MIRA Chile (norte, con más detalle), SINCA y NOAA ISD (resto del país). En la tabla de SINCA hay tres pares de
 estaciones con códigos distintos en el mismo punto exacto (RII/217 y RII/210, RII/205 y RII/202,
 RIV/420 y RIV/414): se dejan como vienen hasta confirmarlo con la red.
 Las tablas de calidad del aire no dicen qué contaminantes mide cada estación; eso se completa con el
@@ -121,6 +121,20 @@ Necesita una clave gratuita de https://explore.openaq.org: `export OPENAQ_API_KE
 
 Las correcciones a errores de las fuentes y las estaciones omitidas están listadas, con su
 motivo, al principio de `importar_fuentes_abiertas.py`.
+
+### Prioridad entre fuentes
+
+Varias fuentes describen la misma estación (por ejemplo, una estación del SINCA aparece en MIRA
+Chile y en la tabla del SINCA). `actualizar_catalogo.py` procesa los catálogos en el orden de
+`PRIORIDAD` y descarta una estación si ya la cargó una fuente anterior. Se considera la misma
+estación cuando:
+
+- tienen el mismo nombre y están a menos de 200 m;
+- miden lo mismo (o la anterior mide más) y están a menos de 200 m, o a menos de 3 km con el mismo nombre;
+- las dos son solo meteorológicas y están a menos de 1,5 km (el mismo aeropuerto en NOAA ISD y en otra red).
+
+El script informa cuántas descartó de cada fuente. Las estaciones del formulario nunca se descartan
+solas: si parecen duplicadas, se avisa para revisarlas.
 
 ## Redes completas (plantilla CSV)
 
