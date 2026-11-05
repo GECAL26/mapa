@@ -17,6 +17,7 @@ Google Form ──► Hoja "Respuestas" ──(revisión)──► pestaña "pub
 | `formulario/ejemplo_respuestas.csv` | Respuestas ficticias para probar el script (incluye errores a propósito) |
 | `scripts/actualizar_catalogo.py` | Valida las estaciones aprobadas, les suma los catálogos importados y genera `sitio/data/estaciones.{csv,js}` (solo biblioteca estándar) |
 | `scripts/importar_mira_chile.py` | Convierte el catálogo de MIRA Chile a `sitio/data/importadas/mira_chile.csv` |
+| `scripts/importar_fuentes_abiertas.py` | Convierte catálogos abiertos (SINAICA, CETESB, MonitorAr, SENAMHI, NOAA ISD) a `sitio/data/importadas/` |
 | `CONTRIBUIR.md` | Guía para sumar estaciones: formulario, plantilla CSV para redes completas o importador |
 | `plantillas/` | `plantilla_red.csv` (vacía) y `ejemplo_red.csv` (con errores típicos para probar `--revisar`) |
 | `formulario/avisos.gs` | Apps Script opcional: mail al equipo revisor con cada carga nueva |
@@ -84,6 +85,32 @@ meteorología; frecuencia = la más fina disponible; año de inicio = el más an
 «Sí» operativa si alguna serie tiene datos actuales, «Sin datos recientes» si ninguna;
 enlace = guía de descarga de la red en el repositorio de MIRA Chile.
 
+## Catálogos abiertos ya incorporados
+
+| Fuente | País | Estaciones | Tipo | Tabla de origen (licencia MIT) |
+|---|---|---|---|---|
+| SINAICA (INECC) | México | 200 | Calidad del aire | `diegovalle/rsinaica` |
+| CETESB QUALAR | Brasil (São Paulo) | 75 | Calidad del aire | `ropensci/qualR` |
+| MonitorAr-Rio | Brasil (Rio de Janeiro) | 8 | Calidad del aire y meteorología | `ropensci/qualR` |
+| SENAMHI | Perú (Lima) | 18 | Calidad del aire y meteorológicas automáticas | `quishqa/limaair` |
+| NOAA ISD | 26 países | 977 | Meteorológicas sinópticas/aeronáuticas activas | `ropensci/GSODR` |
+
+Chile queda afuera de todas por ahora: se va a cargar completo desde MIRA Chile. Las tablas de
+calidad del aire no dicen qué contaminantes mide cada estación; eso se completa con el
+formulario o con información de cada red. Para regenerar todo:
+
+```bash
+pip install rdata
+mkdir -p /tmp/fuentes && cd /tmp/fuentes
+for r in diegovalle/rsinaica ropensci/qualR quishqa/limaair ropensci/GSODR; do
+    git clone --depth 1 https://github.com/$r.git; done
+cd - && python3 scripts/importar_fuentes_abiertas.py /tmp/fuentes
+python3 scripts/actualizar_catalogo.py --solo-importadas
+```
+
+Las correcciones a errores de las fuentes y las estaciones omitidas están listadas, con su
+motivo, al principio de `importar_fuentes_abiertas.py`.
+
 ## Redes completas (plantilla CSV)
 
 Ver [CONTRIBUIR.md](CONTRIBUIR.md). Una planilla completada se valida con
@@ -118,5 +145,5 @@ Si se cambia el texto de una pregunta del formulario, actualizar `PREGUNTAS` en 
 
 ## Créditos
 
-Inspirado en [MIRA Chile](https://suraurora.github.io/mira-chile/). Código propio de GECAL.
+Código propio de GECAL. Datos de las redes citadas arriba y de quienes aportan por el formulario.
 Contornos de países: Natural Earth (dominio público) vía `world-atlas`. Mapa: Leaflet (BSD-2).

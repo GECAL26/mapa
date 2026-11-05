@@ -283,7 +283,9 @@ def procesar(filas: list[dict], fuente_defecto: str = FUENTE_FORM, vistas: list[
         etiqueta = f"{etiqueta_origen}fila {n} «{f.get('nombre_estacion') or 'sin nombre'}»"
         fuente = f.get("fuente") or fuente_defecto
 
-        faltan = [c for c in OBLIGATORIAS if not f.get(c)]
+        # En catálogos importados la localidad puede faltar (p. ej. estaciones sinópticas)
+        req = OBLIGATORIAS if fuente == FUENTE_FORM else [c for c in OBLIGATORIAS if c != "localidad"]
+        faltan = [c for c in req if not f.get(c)]
         if faltan:
             errores.append(f"{etiqueta}: faltan campos obligatorios: {', '.join(faltan)}")
             continue
@@ -324,7 +326,7 @@ def procesar(filas: list[dict], fuente_defecto: str = FUENTE_FORM, vistas: list[
 
         alt = numero(f.get("altitud_m", ""))
         anio = numero(f.get("anio_inicio", ""))
-        if anio is not None and not (1950 <= anio <= datetime.now().year + 1):
+        if anio is not None and not (1850 <= anio <= datetime.now().year + 1):
             avisos.append(f"{etiqueta}: año de inicio raro ({f['anio_inicio']}); se deja vacío")
             anio = None
 
@@ -344,7 +346,7 @@ def procesar(filas: list[dict], fuente_defecto: str = FUENTE_FORM, vistas: list[
                     salida.append(c)
             listas[campo] = salida
         vars_ = listas["contaminantes"] + listas["meteorologia"]
-        if not vars_:
+        if not vars_ and fuente == FUENTE_FORM:
             avisos.append(f"{etiqueta}: no indica ninguna variable medida")
 
         codigo = f.get("codigo", "")
@@ -357,7 +359,7 @@ def procesar(filas: list[dict], fuente_defecto: str = FUENTE_FORM, vistas: list[
                 continue
             d = haversine_m(lat, lon, previa["latitud"], previa["longitud"])
             mismo_nombre = norm(previa["nombre_estacion"]) == norm(f["nombre_estacion"])
-            if d < DIST_DUPLICADO_M or (mismo_nombre and norm(previa["pais"]) == norm(f["pais"])):
+            if d < DIST_DUPLICADO_M or (mismo_nombre and norm(previa["pais"]) == norm(f["pais"]) and d < 2000):
                 avisos.append(f"{etiqueta}: posible duplicado de {previa['id_gecal']} «{previa['nombre_estacion']}» ({d:.0f} m)")
                 break
 
@@ -374,7 +376,7 @@ def procesar(filas: list[dict], fuente_defecto: str = FUENTE_FORM, vistas: list[
             "fecha_carga": fecha,
             "pais": f["pais"],
             "division": f.get("division", ""),
-            "localidad": f["localidad"],
+            "localidad": f.get("localidad", ""),
             "latitud": round(lat, 6),
             "longitud": round(lon, 6),
             "altitud_m": round(alt, 1) if alt is not None else None,
