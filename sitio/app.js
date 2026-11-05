@@ -33,8 +33,10 @@
   // ---------- definición de filtros
   const ORDEN_VARS = ["MP10", "MP2.5", "MP1", "O3", "NO", "NO2", "NOx", "SO2", "CO", "CO2", "CH4", "H2S", "NH3", "COV / BTEX", "HCHO",
     "Carbono negro (BC)", "Metales en material particulado", "Temperatura", "Humedad relativa", "Presión", "Velocidad del viento",
-    "Dirección del viento", "Precipitación", "Radiación solar"];
-  const ORDEN_FREC = ["1 min o menos", "5 a 15 min", "1 hora", "24 horas", "Variable / otra", "No sé"];
+    "Dirección del viento", "Ráfaga del viento", "Precipitación", "Radiación solar"];
+  // Catálogos externos incorporados: nombre de la fuente -> enlace
+  const FUENTES = { "MIRA Chile": "https://suraurora.github.io/mira-chile/" };
+  const ORDEN_FREC = ["1 min o menos", "5 a 15 min", "30 min", "1 hora", "24 horas", "Variable / otra", "No sé"];
   const FILTROS = [
     { k: "pais", t: "País", abierto: true },
     { k: "tipo_estacion", t: "Tipo de estación", abierto: true },
@@ -46,6 +48,7 @@
     { k: "frecuencia", t: "Frecuencia", orden: ORDEN_FREC },
     { k: "estado_operativo", t: "Operativa actualmente" },
     { k: "acceso_datos", t: "Acceso a los datos" },
+    { k: "fuente", t: "Fuente del registro" },
     { k: "desde", t: "Midiendo desde (año o antes)", unico: true }
   ];
   const sel = {}; // k -> Set
@@ -196,6 +199,7 @@
         ${fila("Datos", esc(e.acceso_datos))}
         ${fila("Altitud", e.altitud_m != null ? esc(e.altitud_m) + " m" : "")}
         ${fila("Coordenadas", esc(e.latitud.toFixed(4) + ", " + e.longitud.toFixed(4)))}
+        ${e.fuente ? `<dt>Fuente</dt><dd>${FUENTES[e.fuente] ? `<a href="${esc(FUENTES[e.fuente])}" target="_blank" rel="noopener noreferrer">${esc(e.fuente)} ↗</a>` : esc(e.fuente)}</dd>` : ""}
         ${url ? `<dt>Enlace</dt><dd><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Ver datos / red ↗</a></dd>` : ""}
       </dl>
       <div class="muted" style="margin-top:8px">${esc(e.id_gecal)}${e.fecha_carga ? " · cargada " + esc(e.fecha_carga) : ""}</div></div>`;
@@ -306,11 +310,21 @@
   const bf = $("#btn-form");
   if (urlSegura(CFG.formUrl)) bf.href = CFG.formUrl;
   else { bf.setAttribute("aria-disabled", "true"); bf.title = "Configurá formUrl en config.js"; }
+  if (urlSegura(CFG.contribuirUrl)) { const lr = $("#link-red"); lr.href = CFG.contribuirUrl; lr.hidden = false; }
   if (CFG.avisoDemo) $("#aviso-demo").hidden = false;
   $("#pie-meta").textContent = [
     META.generado ? "Catálogo actualizado: " + new Date(META.generado).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" }) : "",
     CFG.contacto ? "Contacto: " + CFG.contacto : ""
   ].filter(Boolean).join(" · ");
+  const externas = (META.fuentes || []).filter((f) => FUENTES[f]);
+  if (externas.length) {
+    const pc = document.createElement("p");
+    pc.className = "muted";
+    pc.innerHTML = "Incluye estaciones de " + externas.map((f) =>
+      `<a href="${esc(FUENTES[f])}" target="_blank" rel="noopener noreferrer">${esc(f)}</a>`).join(", ") +
+      ", con agradecimiento a sus autores.";
+    $("#pie-meta").before(pc);
+  }
 
   actualizar();
 })();

@@ -15,7 +15,11 @@ Google Form ──► Hoja "Respuestas" ──(revisión)──► pestaña "pub
 |---|---|
 | `formulario/crear_formulario.gs` | Apps Script que crea el formulario, la hoja de respuestas y las columnas de revisión |
 | `formulario/ejemplo_respuestas.csv` | Respuestas ficticias para probar el script (incluye errores a propósito) |
-| `scripts/actualizar_catalogo.py` | Valida las estaciones aprobadas y genera `sitio/data/estaciones.{csv,js}` (solo biblioteca estándar) |
+| `scripts/actualizar_catalogo.py` | Valida las estaciones aprobadas, les suma los catálogos importados y genera `sitio/data/estaciones.{csv,js}` (solo biblioteca estándar) |
+| `scripts/importar_mira_chile.py` | Convierte el catálogo de MIRA Chile a `sitio/data/importadas/mira_chile.csv` |
+| `CONTRIBUIR.md` | Guía para sumar estaciones: formulario, plantilla CSV para redes completas o importador |
+| `plantillas/` | `plantilla_red.csv` (vacía) y `ejemplo_red.csv` (con errores típicos para probar `--revisar`) |
+| `formulario/avisos.gs` | Apps Script opcional: mail al equipo revisor con cada carga nueva |
 | `sitio/` | Sitio estático: `index.html`, `app.js`, `styles.css`, `config.js`, `img/` (logo y favicon de GECAL), `data/`, `vendor/leaflet/` |
 | `.github/workflows/deploy-pages.yml` | Publica `sitio/` en GitHub Pages en cada push a `main` |
 | `.github/workflows/actualizar-datos.yml` | Opcional: baja la pestaña "publicadas" todos los días, valida y publica |
@@ -60,6 +64,31 @@ coordenadas fuera de la región, con pistas como «¿falta el signo negativo?»)
 "publicadas" → CSV. Guardar esa URL como secreto `SHEET_CSV_URL` del repositorio. El workflow
 `actualizar-datos.yml` se encarga todos los días. Ojo: esa URL es pública, por eso solo se
 publica la pestaña sin datos personales.
+
+## Catálogos importados (MIRA Chile)
+
+Las estaciones de otras iniciativas viven en `sitio/data/importadas/*.csv`, con el mismo
+esquema y una columna `fuente`. `actualizar_catalogo.py` las suma siempre a las del formulario
+y avisa si una estación cargada en el formulario parece duplicar una importada.
+
+Para refrescar MIRA Chile cuando publiquen una versión nueva:
+
+```bash
+git clone --depth 1 https://github.com/suraurora/mira-chile.git /tmp/mira-chile
+python3 scripts/importar_mira_chile.py /tmp/mira-chile
+python3 scripts/actualizar_catalogo.py publicadas.csv      # o --solo-importadas
+```
+
+Criterios de conversión: una fila por estación; variables agrupadas en contaminantes y
+meteorología; frecuencia = la más fina disponible; año de inicio = el más antiguo de sus series;
+«Sí» operativa si alguna serie tiene datos actuales, «Sin datos recientes» si ninguna;
+enlace = guía de descarga de la red en el repositorio de MIRA Chile.
+
+## Redes completas (plantilla CSV)
+
+Ver [CONTRIBUIR.md](CONTRIBUIR.md). Una planilla completada se valida con
+`python3 scripts/actualizar_catalogo.py --revisar archivo.csv` y, si está bien, se copia a
+`sitio/data/importadas/` para que se sume al mapa.
 
 ## 4. Ver el sitio localmente
 
