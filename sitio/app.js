@@ -23,7 +23,8 @@
     "CETESB": "https://qualar.cetesb.sp.gov.br/qualar/home.do",
     "MonitorAr-Rio": "https://www.data.rio/",
     "SENAMHI": "https://www.senamhi.gob.pe/",
-    "NOAA ISD": "https://www.ncei.noaa.gov/products/land-based-station/integrated-surface-database"
+    "NOAA ISD": "https://www.ncei.noaa.gov/products/land-based-station/integrated-surface-database",
+    "OpenAQ": "https://openaq.org/"
   };
 
   // ---------- utilidades

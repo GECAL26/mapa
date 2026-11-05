@@ -17,6 +17,8 @@ Google Form ──► Hoja "Respuestas" ──(revisión)──► pestaña "pub
 | `formulario/ejemplo_respuestas.csv` | Respuestas ficticias para probar el script (incluye errores a propósito) |
 | `scripts/actualizar_catalogo.py` | Valida las estaciones aprobadas, les suma los catálogos importados y genera `sitio/data/estaciones.{csv,js}` (solo biblioteca estándar) |
 | `scripts/importar_mira_chile.py` | Convierte el catálogo de MIRA Chile a `sitio/data/importadas/mira_chile.csv` |
+| `scripts/importar_openaq.py` | Importa estaciones de referencia de LAC desde OpenAQ (requiere API key gratuita) |
+| `sitio/data/importadas/relevamiento_gecal.csv` | Estaciones cargadas a mano por GECAL; cada una con su fuente en `relevamiento_gecal.FUENTES.md` |
 | `scripts/importar_fuentes_abiertas.py` | Convierte catálogos abiertos (SINAICA, CETESB, MonitorAr, SENAMHI, NOAA ISD) a `sitio/data/importadas/` |
 | `CONTRIBUIR.md` | Guía para sumar estaciones: formulario, plantilla CSV para redes completas o importador |
 | `plantillas/` | `plantilla_red.csv` (vacía) y `ejemplo_red.csv` (con errores típicos para probar `--revisar`) |
@@ -107,6 +109,10 @@ for r in diegovalle/rsinaica ropensci/qualR quishqa/limaair ropensci/GSODR; do
 cd - && python3 scripts/importar_fuentes_abiertas.py /tmp/fuentes
 python3 scripts/actualizar_catalogo.py --solo-importadas
 ```
+
+**OpenAQ** suma redes oficiales de muchos otros países (y opcionalmente sensores de bajo costo).
+Necesita una clave gratuita de https://explore.openaq.org: `export OPENAQ_API_KEY=...` y
+`python3 scripts/importar_openaq.py`. Omite las estaciones a menos de 200 m de otra ya cargada.
 
 Las correcciones a errores de las fuentes y las estaciones omitidas están listadas, con su
 motivo, al principio de `importar_fuentes_abiertas.py`.
