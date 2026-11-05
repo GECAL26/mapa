@@ -15,8 +15,8 @@ Uso:
 Escribe sitio/data/importadas/openaq.csv. Criterios:
   * Solo ubicaciones fijas (no móviles) en países de LAC; Chile excluido por ahora (MIRA Chile).
   * Por defecto solo `isMonitor = true` (equipos de referencia de redes oficiales).
-  * Se omiten estaciones a menos de 200 m de una ya cargada por otra fuente (SINAICA,
-    CETESB, etc.), o con el mismo nombre a menos de 3 km, para no duplicarlas.
+  * Los duplicados con otras fuentes (SINAICA, CETESB, MIRA, etc.) no se resuelven acá sino en
+    actualizar_catalogo.py, según el orden de PRIORIDAD.
   * Operativa = «Sí» si su último dato tiene menos de 30 días; si no, «Sin datos recientes».
   * Variables: los sensores declarados en OpenAQ, traducidos al vocabulario GECAL.
 """
@@ -120,7 +120,6 @@ def ya_cargadas() -> list[tuple[float, float, str]]:
 
 
 def convertir(ubicaciones: list[dict], incluir_sensores: bool) -> tuple[list[dict], dict]:
-    previas = ya_cargadas()
     ahora = datetime.now(timezone.utc)
     filas, omitidas = [], {"fuera de LAC o Chile": 0, "móvil": 0, "sensor de bajo costo": 0, "duplicada": 0, "sin coordenadas": 0}
     for u in ubicaciones:
@@ -136,10 +135,6 @@ def convertir(ubicaciones: list[dict], incluir_sensores: bool) -> tuple[list[dic
         if c.get("latitude") is None or c.get("longitude") is None:
             omitidas["sin coordenadas"] += 1; continue
         punto = (float(c["latitude"]), float(c["longitude"]))
-        nombre_n = norm(u.get("name") or "")
-        if any((d := distancia_m(punto, p[:2])) < DIST_DUP_M or (nombre_n and nombre_n == p[2] and d < DIST_DUP_NOMBRE_M)
-               for p in previas):
-            omitidas["duplicada"] += 1; continue
 
         cont, met = [], []
         for s in u.get("sensors") or []:
@@ -174,7 +169,6 @@ def convertir(ubicaciones: list[dict], incluir_sensores: bool) -> tuple[list[dic
             "estado_operativo": "Sí" if reciente else "Sin datos recientes",
             "acceso_datos": "Públicos, en tiempo real o casi real" if reciente else "Públicos, solo históricos",
             "url_datos": f"https://explore.openaq.org/locations/{u['id']}", "fuente": "OpenAQ"})
-        previas.append((punto[0], punto[1], nombre_n))
     return filas, omitidas
 
 

@@ -98,9 +98,9 @@ enlace = guía de descarga de la red en el repositorio de MIRA Chile.
 | SENAMHI | Perú (Lima) | 18 | Calidad del aire y meteorológicas automáticas | `quishqa/limaair` |
 | MIRA Chile | Chile (Arica a Atacama) | 862 | Meteorológicas y de calidad del aire, con variables y estado | `suraurora/mira-chile` (`importar_mira_chile.py`) |
 | VISMET / CR2 | Chile (todo el país) | 1555 (+345 ya en MIRA) | Meteorológicas de DGA, DMC, AGROMET, CEAZA, REDMETEO, SERVIMET, UFRO y CR2 | API pública de VISMET (`importar_vismet.py`) |
-| SINCA (MMA) | Chile | 150 (+55 ya en MIRA o VISMET) | Calidad del aire | `franciscoxaxo/AtmChile` (GPL-3) |
+| SINCA (MMA) | Chile | 51 que no están en OpenAQ ni MIRA | Calidad del aire (tabla histórica, sin variables ni estado) | `franciscoxaxo/AtmChile` (GPL-3) |
 | NOAA ISD | 27 países | 1013 | Meteorológicas sinópticas/aeronáuticas activas | `ropensci/GSODR` |
-| OpenAQ | varios | 172 | Calidad del aire (equipos de referencia) | API de OpenAQ (`importar_openaq.py`) |
+| OpenAQ | 20 países, incluido Chile (SINCA) | 321 | Calidad del aire (equipos de referencia), con variables y estado | API de OpenAQ (`importar_openaq.py`) |
 
 Chile se carga desde MIRA Chile (norte, con más detalle y series verificadas), VISMET / CR2
 (inventario meteorológico nacional, con actividad de la última semana), SINCA y NOAA ISD.
@@ -121,7 +121,7 @@ python3 scripts/actualizar_catalogo.py --solo-importadas
 
 **OpenAQ** suma redes oficiales de muchos otros países (y opcionalmente sensores de bajo costo).
 Necesita una clave gratuita de https://explore.openaq.org: `export OPENAQ_API_KEY=...` y
-`python3 scripts/importar_openaq.py`. Omite las estaciones a menos de 200 m de otra ya cargada.
+`python3 scripts/importar_openaq.py`. Los duplicados con otras fuentes se resuelven por prioridad en `actualizar_catalogo.py`.
 
 Las correcciones a errores de las fuentes y las estaciones omitidas están listadas, con su
 motivo, al principio de `importar_fuentes_abiertas.py`.
@@ -130,7 +130,7 @@ motivo, al principio de `importar_fuentes_abiertas.py`.
 
 Varias fuentes describen la misma estación (por ejemplo, una estación del SINCA aparece en MIRA
 Chile y en la tabla del SINCA). `actualizar_catalogo.py` procesa los catálogos en el orden de
-`PRIORIDAD` (MIRA Chile, VISMET, SINAICA, CETESB, MonitorAr, SENAMHI, SINCA, OpenAQ, NOAA ISD)
+`PRIORIDAD` (MIRA Chile, VISMET, SINAICA, CETESB, MonitorAr, SENAMHI, OpenAQ, SINCA, NOAA ISD)
 y descarta una estación si ya la cargó una fuente anterior. Se considera la misma
 estación cuando:
 
