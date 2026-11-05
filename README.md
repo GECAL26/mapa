@@ -19,7 +19,7 @@ Google Form ──► Hoja "Respuestas" ──(revisión)──► pestaña "pub
 | `scripts/importar_mira_chile.py` | Convierte el catálogo de MIRA Chile a `sitio/data/importadas/mira_chile.csv` |
 | `scripts/importar_openaq.py` | Importa estaciones de referencia de LAC desde OpenAQ (requiere API key gratuita) |
 | `sitio/data/importadas/relevamiento_gecal.csv` | Estaciones cargadas a mano por GECAL; cada una con su fuente en `relevamiento_gecal.FUENTES.md` |
-| `scripts/importar_fuentes_abiertas.py` | Convierte catálogos abiertos (SINAICA, CETESB, MonitorAr, SENAMHI, NOAA ISD) a `sitio/data/importadas/` |
+| `scripts/importar_fuentes_abiertas.py` | Convierte catálogos abiertos (SINAICA, SINCA, CETESB, MonitorAr, SENAMHI, NOAA ISD) a `sitio/data/importadas/` |
 | `CONTRIBUIR.md` | Guía para sumar estaciones: formulario, plantilla CSV para redes completas o importador |
 | `plantillas/` | `plantilla_red.csv` (vacía) y `ejemplo_red.csv` (con errores típicos para probar `--revisar`) |
 | `formulario/avisos.gs` | Apps Script opcional: mail al equipo revisor con cada carga nueva |
@@ -95,16 +95,21 @@ enlace = guía de descarga de la red en el repositorio de MIRA Chile.
 | CETESB QUALAR | Brasil (São Paulo) | 75 | Calidad del aire | `ropensci/qualR` |
 | MonitorAr-Rio | Brasil (Rio de Janeiro) | 8 | Calidad del aire y meteorología | `ropensci/qualR` |
 | SENAMHI | Perú (Lima) | 18 | Calidad del aire y meteorológicas automáticas | `quishqa/limaair` |
-| NOAA ISD | 26 países | 977 | Meteorológicas sinópticas/aeronáuticas activas | `ropensci/GSODR` |
+| SINCA (MMA) | Chile | 205 | Calidad del aire | `franciscoxaxo/AtmChile` (GPL-3) |
+| NOAA ISD | 27 países | 1013 | Meteorológicas sinópticas/aeronáuticas activas | `ropensci/GSODR` |
+| OpenAQ | varios | 172 | Calidad del aire (equipos de referencia) | API de OpenAQ (`importar_openaq.py`) |
 
-Chile queda afuera de todas por ahora: se va a cargar completo desde MIRA Chile. Las tablas de
-calidad del aire no dicen qué contaminantes mide cada estación; eso se completa con el
+Chile se carga desde SINCA y NOAA ISD. Cuando MIRA Chile esté completo puede reemplazarlos o
+complementarlos (el validador avisa de los duplicados). En la tabla de SINCA hay tres pares de
+estaciones con códigos distintos en el mismo punto exacto (RII/217 y RII/210, RII/205 y RII/202,
+RIV/420 y RIV/414): se dejan como vienen hasta confirmarlo con la red.
+Las tablas de calidad del aire no dicen qué contaminantes mide cada estación; eso se completa con el
 formulario o con información de cada red. Para regenerar todo:
 
 ```bash
 pip install rdata
 mkdir -p /tmp/fuentes && cd /tmp/fuentes
-for r in diegovalle/rsinaica ropensci/qualR quishqa/limaair ropensci/GSODR; do
+for r in diegovalle/rsinaica ropensci/qualR quishqa/limaair ropensci/GSODR franciscoxaxo/AtmChile; do
     git clone --depth 1 https://github.com/$r.git; done
 cd - && python3 scripts/importar_fuentes_abiertas.py /tmp/fuentes
 python3 scripts/actualizar_catalogo.py --solo-importadas

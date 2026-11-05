@@ -12,11 +12,12 @@ repositorios y este script los convierte, sin pasos manuales:
   monitorar       github.com/ropensci/qualR               MonitorAr (Prefeitura do Rio de Janeiro)
   senamhi         github.com/quishqa/limaair              SENAMHI (Lima, Perú): calidad del aire y EMA
   noaa_isd        github.com/ropensci/GSODR               NOAA NCEI Integrated Surface Database
+  sinca           github.com/franciscoxaxo/AtmChile (GPL-3)  SINCA (Ministerio del Medio Ambiente, Chile)
 
 Uso:
   pip install rdata            # lector de archivos .rda (Python puro)
   mkdir -p /tmp/fuentes && cd /tmp/fuentes
-  for r in diegovalle/rsinaica ropensci/qualR quishqa/limaair ropensci/GSODR; do
+  for r in diegovalle/rsinaica ropensci/qualR quishqa/limaair ropensci/GSODR franciscoxaxo/AtmChile; do
       git clone --depth 1 https://github.com/$r.git; done
   python scripts/importar_fuentes_abiertas.py /tmp/fuentes
   python scripts/actualizar_catalogo.py --solo-importadas
@@ -31,7 +32,11 @@ Criterios (documentados para que la conversión sea reproducible y auditable):
     los 90 días previos a la fecha más reciente del archivo (se consideran activas a esa
     fecha). Variables típicas de los reportes SYNOP/METAR que integra ISD (temperatura,
     humedad, presión y viento); no se verifican estación por estación.
-  * Chile se excluye por ahora en todas las fuentes: se cargará completo desde MIRA Chile.
+  * NOAA ISD: se omiten las bases antárticas (latitud < -60).
+  * SINCA: en inst/extdata/SINCA.csv de AtmChile las columnas «Longitud» y «Latitud» están
+    invertidas (el propio paquete las usa al revés); acá se leen corregidas. La tabla no
+    indica qué mide cada estación ni si sigue activa, ni la comuna: esos campos quedan vacíos.
+    La región viene con la numeración previa a 2018 (VIII incluye la actual región de Ñuble).
   * CORRECCIONES: errores evidentes de tipeo en la fuente se corrigen acá, uno por uno y
     con su justificación (ver CORRECCIONES).
 """
@@ -45,7 +50,7 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
 DESTINO = RAIZ / "sitio" / "data" / "importadas"
-EXCLUIR_PAISES = {"Chile"}  # se carga completo desde MIRA Chile
+EXCLUIR_PAISES: set[str] = set()  # países a dejar afuera (vacío: se importan todos)
 
 CAMPOS = ["id_gecal", "fecha_carga", "pais", "division", "localidad", "latitud", "longitud",
           "altitud_m", "nombre_estacion", "codigo", "red", "operador", "tipo_estacion", "entorno",
@@ -197,6 +202,7 @@ def noaa_isd(base: Path) -> list[dict]:
     ultima = datetime.strptime(fin.max(), "%Y%m%d")
     corte = (ultima - timedelta(days=90)).strftime("%Y%m%d")
     d = d[fin >= corte]
+    d = d[d.LAT.astype(float) >= -60]  # sin bases antárticas
     salida = []
     for _, r in d.iterrows():
         alt = r["ELEV(M)"]
@@ -214,7 +220,30 @@ def noaa_isd(base: Path) -> list[dict]:
     return salida
 
 
-FUENTES = {"sinaica": sinaica, "cetesb": cetesb, "monitorar": monitorar, "senamhi": senamhi,
+REGIONES_CL = {"XV": "Arica y Parinacota", "I": "Tarapacá", "II": "Antofagasta", "III": "Atacama",
+               "IV": "Coquimbo", "V": "Valparaíso", "RM": "Metropolitana", "VI": "O'Higgins",
+               "VII": "Maule", "VIII": "Biobío / Ñuble", "IX": "La Araucanía", "XIV": "Los Ríos",
+               "X": "Los Lagos", "XI": "Aysén", "XII": "Magallanes"}
+
+
+def sinca(base: Path) -> list[dict]:
+    salida = []
+    with (base / "AtmChile/inst/extdata/SINCA.csv").open(encoding="latin-1") as fh:
+        for r in csv.DictReader(fh):
+            # Encabezados invertidos en la fuente: «Longitud» trae la latitud y viceversa
+            lat, lon = float(r["Longitud"]), float(r["Latitud"])
+            cod = r["cod"].strip()
+            salida.append(fila(
+                id_gecal="CL-SINCA-" + cod.replace("/", "-"), pais="Chile",
+                division=REGIONES_CL.get(r["Region"].strip(), ""), localidad="",
+                latitud=lat, longitud=lon, nombre_estacion=r["Estacion"].strip(), codigo=cod,
+                red="SINCA", operador="Publicada en SINCA (MMA)", tipo_estacion="Calidad del aire",
+                acceso_datos="Públicos, en tiempo real o casi real", url_datos="https://sinca.mma.gob.cl/",
+                fuente="SINCA Chile"))
+    return salida
+
+
+FUENTES = {"sinaica": sinaica, "sinca": sinca, "cetesb": cetesb, "monitorar": monitorar, "senamhi": senamhi,
            "noaa_isd": noaa_isd}
 
 

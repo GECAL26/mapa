@@ -20,6 +20,7 @@
   const FUENTES = {
     "MIRA Chile": "https://suraurora.github.io/mira-chile/",
     "SINAICA": "https://sinaica.inecc.gob.mx/",
+    "SINCA Chile": "https://sinca.mma.gob.cl/",
     "CETESB": "https://qualar.cetesb.sp.gov.br/qualar/home.do",
     "MonitorAr-Rio": "https://www.data.rio/",
     "SENAMHI": "https://www.senamhi.gob.pe/",
