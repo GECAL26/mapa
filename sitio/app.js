@@ -35,7 +35,14 @@
   const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   const cmp = (a, b) => String(a).localeCompare(String(b), "es", { numeric: true, sensitivity: "base" });
   const fmt = (n) => Number(n).toLocaleString("es");
-  const colorDe = (e) => TIPOS[e.tipo_estacion] || "#66748c";
+  // Color de los puntos: por tipo de estación o por red
+  let modoColor = "tipo";
+  let coloresRed = {};
+  const PALETA_REDES = ["#1c8fd6", "#e8590c", "#0a8783", "#7048e8", "#d6336c", "#2f9e44", "#f08c00",
+    "#1864ab", "#9c36b5", "#5c940d", "#c92a2a"];
+  const COLOR_OTRAS = "#9aa5b4";
+  const colorDe = (e) => (modoColor === "red" ? coloresRed[e.red] || COLOR_OTRAS : TIPOS[e.tipo_estacion] || "#66748c");
+  const claveLugar = (e) => e.latitud.toFixed(4) + "," + e.longitud.toFixed(4);
   const posEn = (orden) => (v) => { const i = orden.indexOf(v); return i < 0 ? 999 : i; };
 
   DATA.forEach((e, i) => {
@@ -151,37 +158,103 @@
   const leyenda = L.control({ position: "bottomleft" });
   leyenda.onAdd = () => {
     const d = L.DomUtil.create("div", "leyenda");
-    d.innerHTML = Object.keys(TIPOS).map((k) => `<div><i style="background:${TIPOS[k]}"></i>${esc(k)}</div>`).join("") +
-      `<div><i class="hueco"></i>Sin confirmar que esté operativa</div>`;
+    L.DomEvent.disableClickPropagation(d);
+    L.DomEvent.disableScrollPropagation(d);
+    d.addEventListener("click", (ev) => {
+      const b = ev.target.closest("button[data-modo]");
+      if (!b || b.dataset.modo === modoColor) return;
+      modoColor = b.dataset.modo;
+      repintarColores();
+    });
     return d;
   };
   leyenda.addTo(mapa);
   mapa.fitBounds([[-55, -117], [32, -34]]);
 
-  const marcadores = new Map();
+  function calcularColoresRed(lista) {
+    const cnt = new Map();
+    lista.forEach((e) => cnt.set(e.red, (cnt.get(e.red) || 0) + 1));
+    const top = [...cnt.entries()].sort((a, b) => b[1] - a[1] || cmp(a[0], b[0])).slice(0, PALETA_REDES.length);
+    coloresRed = {};
+    top.forEach(([red], i) => (coloresRed[red] = PALETA_REDES[i]));
+    return cnt.size > top.length;
+  }
+
+  function pintarLeyenda(hayOtras) {
+    const d = leyenda.getContainer();
+    const items = modoColor === "red"
+      ? Object.entries(coloresRed).map(([red, c]) => `<div><i style="background:${c}"></i>${esc(red)}</div>`).join("") +
+        (hayOtras ? `<div><i style="background:${COLOR_OTRAS}"></i>Otras redes</div>` : "")
+      : Object.keys(TIPOS).map((k) => `<div><i style="background:${TIPOS[k]}"></i>${esc(k)}</div>`).join("");
+    d.innerHTML = `<div class="modo" role="group" aria-label="Colorear puntos por">
+        <span>Color por</span>
+        <button type="button" data-modo="tipo" aria-pressed="${modoColor === "tipo"}">Tipo</button>
+        <button type="button" data-modo="red" aria-pressed="${modoColor === "red"}">Red</button>
+      </div>
+      <div class="items">${items}
+        <div><i class="hueco"></i>Sin confirmar que esté operativa</div>
+        <div><i class="cuenta">3</i>Varias estaciones en el mismo punto</div>
+      </div>`;
+  }
+
   let elegida = null;
   const anillo = L.circleMarker([0, 0], { radius: 13, color: "#042050", weight: 2.5, fill: false, interactive: false });
-  DATA.forEach((e) => {
-    const col = colorDe(e);
-    const activa = e.estado_operativo === "Sí";
-    const m = L.circleMarker([e.latitud, e.longitud], {
-      radius: 6, weight: activa ? 1.4 : 2, color: activa ? "#ffffff" : col, fillColor: activa ? col : "#ffffff", fillOpacity: 0.95
+
+  function pintarMarcadores() {
+    capaEst.clearLayers();
+    const grupos = new Map();
+    visibles.forEach((e) => {
+      const k = claveLugar(e);
+      if (!grupos.has(k)) grupos.set(k, []);
+      grupos.get(k).push(e);
     });
-    m.bindTooltip(esc(e.nombre_estacion), { direction: "top", offset: [0, -6] });
-    m.on("click", () => abrirFicha(e));
-    marcadores.set(e._i, m);
-  });
+    grupos.forEach((g) => {
+      const e = g[0];
+      const col = colorDe(e);
+      const activa = g.some((x) => x.estado_operativo === "Sí");
+      let m;
+      if (g.length === 1) {
+        m = L.circleMarker([e.latitud, e.longitud], {
+          radius: 6, weight: activa ? 1.4 : 2, color: activa ? "#ffffff" : col, fillColor: activa ? col : "#ffffff", fillOpacity: 0.95
+        });
+        m.bindTooltip(esc(e.nombre_estacion), { direction: "top", offset: [0, -6] });
+      } else {
+        m = L.marker([e.latitud, e.longitud], {
+          icon: L.divIcon({ className: "punto-grupo", iconSize: [22, 22],
+            html: `<span style="background:${activa ? col : "#ffffff"};color:${activa ? "#ffffff" : col};border-color:${activa ? "#ffffff" : col}">${g.length}</span>` }),
+          keyboard: false
+        });
+        m.bindTooltip(`${esc(e.nombre_estacion)}: ${g.length} registros en este punto`, { direction: "top", offset: [0, -10] });
+      }
+      m.on("click", () => abrirFicha(e, false, g));
+      capaEst.addLayer(m);
+    });
+  }
+
+  function repintarColores() {
+    const hayOtras = calcularColoresRed(visibles);
+    pintarLeyenda(hayOtras);
+    pintarMarcadores();
+    pintarLista(visibles);
+    if (elegida) abrirFicha(elegida, false, null, true);
+  }
 
   // ---------- ficha
   const ficha = $("#ficha");
-  function abrirFicha(e, centrar) {
+  function abrirFicha(e, centrar, grupo, sinFoco) {
     elegida = e;
+    grupo = grupo || visibles.filter((x) => claveLugar(x) === claveLugar(e));
+    const otros = grupo.length > 1 ? `<div class="mismo-punto">
+        <p>En este punto hay ${grupo.length} registros. Elige cuál ver:</p>
+        <div class="fichas">${grupo.map((x) => `<button type="button" class="chip" data-i="${x._i}" aria-pressed="${x === e}">${
+          esc(x.red)}${x.nombre_estacion !== e.nombre_estacion ? " — " + esc(x.nombre_estacion) : ""}</button>`).join("")}</div>
+      </div>` : "";
     const url = urlSegura(e.url_datos);
     const fuenteUrl = FUENTES[e.fuente];
     const fila = (t, v) => (v ? `<dt>${t}</dt><dd>${v}</dd>` : "");
     const vars = (arr, c) => (arr && arr.length ? `<div class="vars">${arr.map((v) => `<span class="var ${c}">${esc(v)}</span>`).join("")}</div>` : "");
     const hayVars = (e.contaminantes || []).length || (e.meteorologia || []).length;
-    $("#ficha-contenido").innerHTML = `
+    $("#ficha-contenido").innerHTML = `${otros}
       <div class="tipo"><i style="background:${colorDe(e)}"></i>${esc(e.tipo_estacion)}</div>
       <h2 id="ficha-nombre">${esc(e.nombre_estacion)}</h2>
       <p class="lugar">${esc([e.localidad, e.division, e.pais].filter(Boolean).join(", "))}</p>
@@ -211,8 +284,14 @@
     if (estabaOculta) { ficha.classList.remove("entra"); void ficha.offsetWidth; ficha.classList.add("entra"); }
     anillo.setLatLng([e.latitud, e.longitud]).addTo(mapa);
     if (centrar) mapa.flyTo([e.latitud, e.longitud], Math.max(mapa.getZoom(), 10), { duration: 0.7 });
-    $("#ficha-cerrar").focus({ preventScroll: true });
+    if (!sinFoco) $("#ficha-cerrar").focus({ preventScroll: true });
+    fichaGrupo = grupo;
   }
+  let fichaGrupo = null;
+  $("#ficha-contenido").addEventListener("click", (ev) => {
+    const b = ev.target.closest(".mismo-punto button[data-i]");
+    if (b) abrirFicha(DATA[Number(b.dataset.i)], false, fichaGrupo, true);
+  });
   function cerrarFicha() { ficha.hidden = true; elegida = null; anillo.remove(); }
   $("#ficha-cerrar").addEventListener("click", cerrarFicha);
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape" && !ficha.hidden) cerrarFicha(); });
@@ -265,8 +344,9 @@
   let visibles = DATA;
   function actualizar() {
     visibles = DATA.filter((e) => pasa(e));
-    capaEst.clearLayers();
-    visibles.forEach((e) => capaEst.addLayer(marcadores.get(e._i)));
+    const hayOtras = calcularColoresRed(visibles);
+    pintarLeyenda(hayOtras);
+    pintarMarcadores();
     const nP = new Set(visibles.map((e) => e.pais)).size;
     const nR = new Set(visibles.map((e) => e.red)).size;
     $("#resumen").innerHTML = DATA.length

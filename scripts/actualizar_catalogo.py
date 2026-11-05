@@ -45,7 +45,7 @@ IMPORTADAS = DATA / "importadas"
 # Orden de prioridad de los catálogos importados: cuando dos fuentes describen la misma
 # estación (misma clase de medición y a <200 m, o mismo nombre a <3 km) se queda la primera.
 # Las fuentes más detalladas van primero. Las que no figuran acá se procesan al final.
-PRIORIDAD = ["relevamiento_gecal", "mira_chile", "sinaica", "cetesb", "monitorar", "senamhi",
+PRIORIDAD = ["relevamiento_gecal", "mira_chile", "vismet", "sinaica", "cetesb", "monitorar", "senamhi",
              "sinca", "openaq", "noaa_isd"]
 DIST_SUPERADA_M = 200
 DIST_SUPERADA_NOMBRE_M = 3000

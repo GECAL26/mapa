@@ -17,6 +17,7 @@ Google Form ──► Hoja "Respuestas" ──(revisión)──► pestaña "pub
 | `formulario/ejemplo_respuestas.csv` | Respuestas ficticias para probar el script (incluye errores a propósito) |
 | `scripts/actualizar_catalogo.py` | Valida las estaciones aprobadas, les suma los catálogos importados y genera `sitio/data/estaciones.{csv,js}` (solo biblioteca estándar) |
 | `scripts/importar_mira_chile.py` | Convierte el catálogo de MIRA Chile a `sitio/data/importadas/mira_chile.csv` |
+| `scripts/importar_vismet.py` | Inventario nacional de estaciones meteorológicas de Chile desde VISMET / CR2 (DGA, DMC, AGROMET, CEAZA, REDMETEO…) |
 | `scripts/importar_openaq.py` | Importa estaciones de referencia de LAC desde OpenAQ (requiere API key gratuita) |
 | `sitio/data/importadas/relevamiento_gecal.csv` | Estaciones cargadas a mano por GECAL; cada una con su fuente en `relevamiento_gecal.FUENTES.md` |
 | `scripts/importar_fuentes_abiertas.py` | Convierte catálogos abiertos (SINAICA, SINCA, CETESB, MonitorAr, SENAMHI, NOAA ISD) a `sitio/data/importadas/` |
@@ -96,11 +97,14 @@ enlace = guía de descarga de la red en el repositorio de MIRA Chile.
 | MonitorAr-Rio | Brasil (Rio de Janeiro) | 8 | Calidad del aire y meteorología | `ropensci/qualR` |
 | SENAMHI | Perú (Lima) | 18 | Calidad del aire y meteorológicas automáticas | `quishqa/limaair` |
 | MIRA Chile | Chile (Arica a Atacama) | 862 | Meteorológicas y de calidad del aire, con variables y estado | `suraurora/mira-chile` (`importar_mira_chile.py`) |
-| SINCA (MMA) | Chile | 151 (+54 ya en MIRA) | Calidad del aire | `franciscoxaxo/AtmChile` (GPL-3) |
+| VISMET / CR2 | Chile (todo el país) | 1555 (+345 ya en MIRA) | Meteorológicas de DGA, DMC, AGROMET, CEAZA, REDMETEO, SERVIMET, UFRO y CR2 | API pública de VISMET (`importar_vismet.py`) |
+| SINCA (MMA) | Chile | 150 (+55 ya en MIRA o VISMET) | Calidad del aire | `franciscoxaxo/AtmChile` (GPL-3) |
 | NOAA ISD | 27 países | 1013 | Meteorológicas sinópticas/aeronáuticas activas | `ropensci/GSODR` |
 | OpenAQ | varios | 172 | Calidad del aire (equipos de referencia) | API de OpenAQ (`importar_openaq.py`) |
 
-Chile se carga desde MIRA Chile (norte, con más detalle), SINCA y NOAA ISD (resto del país). En la tabla de SINCA hay tres pares de
+Chile se carga desde MIRA Chile (norte, con más detalle y series verificadas), VISMET / CR2
+(inventario meteorológico nacional, con actividad de la última semana), SINCA y NOAA ISD.
+VISMET se actualiza con `python3 scripts/importar_vismet.py` (no requiere clave). En la tabla de SINCA hay tres pares de
 estaciones con códigos distintos en el mismo punto exacto (RII/217 y RII/210, RII/205 y RII/202,
 RIV/420 y RIV/414): se dejan como vienen hasta confirmarlo con la red.
 Las tablas de calidad del aire no dicen qué contaminantes mide cada estación; eso se completa con el
@@ -126,7 +130,8 @@ motivo, al principio de `importar_fuentes_abiertas.py`.
 
 Varias fuentes describen la misma estación (por ejemplo, una estación del SINCA aparece en MIRA
 Chile y en la tabla del SINCA). `actualizar_catalogo.py` procesa los catálogos en el orden de
-`PRIORIDAD` y descarta una estación si ya la cargó una fuente anterior. Se considera la misma
+`PRIORIDAD` (MIRA Chile, VISMET, SINAICA, CETESB, MonitorAr, SENAMHI, SINCA, OpenAQ, NOAA ISD)
+y descarta una estación si ya la cargó una fuente anterior. Se considera la misma
 estación cuando:
 
 - tienen el mismo nombre y están a menos de 200 m;
@@ -141,6 +146,14 @@ solas: si parecen duplicadas, se avisa para revisarlas.
 Ver [CONTRIBUIR.md](CONTRIBUIR.md). Una planilla completada se valida con
 `python3 scripts/actualizar_catalogo.py --revisar archivo.csv` y, si está bien, se copia a
 `sitio/data/importadas/` para que se sume al mapa.
+
+## En el mapa
+
+- Las estaciones que comparten ubicación exacta (por ejemplo, la misma estación publicada por su
+  red y por VISMET) se muestran como un solo punto con el número de registros; la ficha permite
+  elegir cada registro.
+- La leyenda permite colorear los puntos por tipo de estación o por red (las 11 redes con más
+  estaciones visibles tienen color propio; el resto, gris).
 
 ## 4. Ver el sitio localmente
 
