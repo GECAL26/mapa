@@ -1,83 +1,106 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mapa GECAL — Estaciones de monitoreo atmosférico en Latinoamérica y el Caribe</title>
 <meta name="description" content="Atlas abierto y colaborativo de estaciones de calidad del aire y meteorología en Latinoamérica y el Caribe, impulsado por GECAL.">
-<link rel="icon" type="image/png" href="img/favicon.png">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@500;700;800&family=Red+Hat+Text:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="img/gecal-avatar-navy.svg">
+<script>
+/* Tema antes del primer pintado: evita el parpadeo. Misma clave que gecal26.github.io. */
+(function(){var p="system";try{p=localStorage.getItem("gecal-theme")||"system"}catch(e){}
+if(p!=="light"&&p!=="dark")p="system";
+var d=p==="dark"||(p==="system"&&window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);
+var r=document.documentElement;r.dataset.theme=d?"dark":"light";r.dataset.themePref=p;})();
+</script>
+<link rel="preload" href="fonts/montserrat-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/source-sans-3-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/fonts.css">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<a class="skip" href="#mapa" data-i18n="skip">Saltar al mapa</a>
 <header class="barra">
-  <a class="marca" href="./" title="Mapa GECAL">
-    <img src="img/logo-gecal.png" alt="GECAL — Grupo de Estudio de la Calidad del Aire en Latinoamérica" width="130" height="72">
+  <a class="marca" id="marca" href="https://gecal26.github.io/es/" data-i18n-title="brand.home" title="Ir al sitio de GECAL">
+    <img class="gecal-logo-light" src="img/gecal-logo-compacto.svg" alt="GECAL — Grupo de Estudio de la Calidad del Aire en Latinoamérica" data-i18n-alt="brand.alt" width="124" height="70">
+    <img class="gecal-logo-dark" src="img/gecal-logo-compacto-oscuro.svg" alt="" aria-hidden="true" width="124" height="70">
   </a>
   <div class="titulo">
-    <h1>Mapa de estaciones de monitoreo atmosférico</h1>
-    <p>Qué se mide y dónde, en Latinoamérica y el Caribe</p>
+    <h1 data-i18n="header.title">Mapa de estaciones de monitoreo atmosférico</h1>
+    <p data-i18n="header.subtitle">Qué se mide y dónde, en Latinoamérica y el Caribe</p>
   </div>
-  <nav class="sumar" aria-label="Contribuir">
-    <a id="btn-form" class="boton" href="#" target="_blank" rel="noopener">Sumar una estación</a>
-    <a id="link-red" class="enlace" href="#" target="_blank" rel="noopener" hidden>Cargar una red completa</a>
+  <nav class="sumar" data-i18n-aria="a11y.contribute" aria-label="Contribuir">
+    <a id="btn-form" class="gecal-btn gecal-btn--primary gecal-btn--sm" href="#" target="_blank" rel="noopener" data-i18n="add_station">Sumar una estación</a>
+    <a id="link-red" class="enlace" href="#" target="_blank" rel="noopener" hidden data-i18n="add_network">Cargar una red completa</a>
   </nav>
+  <div class="controles">
+    <div class="seg" role="group" data-i18n-aria="a11y.theme" aria-label="Tema de color">
+      <button type="button" data-theme-set="system" aria-pressed="true" data-i18n="theme.system">Sistema</button>
+      <button type="button" data-theme-set="light" aria-pressed="false" data-i18n="theme.light">Claro</button>
+      <button type="button" data-theme-set="dark" aria-pressed="false" data-i18n="theme.dark">Oscuro</button>
+    </div>
+    <details class="menu">
+      <summary data-i18n-aria="a11y.language" aria-label="Idioma"><span id="idioma-actual" aria-hidden="true">ES</span></summary>
+      <ul id="lista-idiomas"></ul>
+    </details>
+  </div>
 </header>
 
 <div class="escena">
-  <aside class="panel" aria-label="Explorar estaciones">
+  <aside class="panel" data-i18n-aria="a11y.explore" aria-label="Explorar estaciones">
     <div class="panel-cabeza">
       <label class="buscar">
-        <span class="sr">Buscar</span>
+        <span class="sr" data-i18n="search.label">Buscar</span>
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4.5 4.5"/></svg>
-        <input id="q" type="search" placeholder="Estación, ciudad, red o código" autocomplete="off">
+        <input id="q" type="search" data-i18n-ph="search.placeholder" placeholder="Estación, ciudad, red o código" autocomplete="off">
       </label>
       <p id="resumen" class="resumen" aria-live="polite"></p>
       <div class="pestanas" role="tablist">
-        <button role="tab" id="tab-filtrar" aria-controls="vista-filtrar" aria-selected="true">Filtrar</button>
-        <button role="tab" id="tab-paises" aria-controls="vista-paises" aria-selected="false">Países</button>
-        <button role="tab" id="tab-lista" aria-controls="vista-lista" aria-selected="false">Lista</button>
+        <button role="tab" id="tab-filtrar" aria-controls="vista-filtrar" aria-selected="true" data-i18n="tab.filter">Filtrar</button>
+        <button role="tab" id="tab-paises" aria-controls="vista-paises" aria-selected="false" data-i18n="tab.countries">Países</button>
+        <button role="tab" id="tab-lista" aria-controls="vista-lista" aria-selected="false" data-i18n="tab.list">Lista</button>
       </div>
     </div>
 
     <div class="panel-cuerpo">
       <section id="vista-filtrar" role="tabpanel" aria-labelledby="tab-filtrar">
         <div id="grupos"></div>
-        <button id="btn-limpiar" class="limpiar" type="button" hidden>Quitar todos los filtros</button>
+        <button id="btn-limpiar" class="limpiar" type="button" hidden data-i18n="filters.clear_all">Quitar todos los filtros</button>
       </section>
       <section id="vista-paises" role="tabpanel" aria-labelledby="tab-paises" hidden>
-        <p class="ayuda">Toca un país para verlo en el mapa y filtrar por él.</p>
+        <p class="ayuda" data-i18n="countries.help">Toca un país para verlo en el mapa y filtrar por él.</p>
         <ol id="paises" class="paises"></ol>
       </section>
       <section id="vista-lista" role="tabpanel" aria-labelledby="tab-lista" hidden>
         <div class="lista-acciones">
-          <button id="btn-csv" class="enlace-boton" type="button">Descargar estas estaciones (CSV)</button>
+          <button id="btn-csv" class="enlace-boton" type="button" data-i18n="list.csv">Descargar estas estaciones (CSV)</button>
         </div>
         <ul id="lista" class="lista"></ul>
-        <button id="btn-mas" class="limpiar" type="button" hidden>Mostrar más</button>
+        <button id="btn-mas" class="limpiar" type="button" hidden></button>
       </section>
     </div>
 
     <footer class="panel-pie">
-      <p>Datos aportados por la comunidad y por catálogos abiertos, revisados por GECAL. Ante dudas, consulta la fuente de cada estación.</p>
+      <p data-i18n="foot.disclaimer">Datos aportados por la comunidad y por catálogos abiertos, revisados por GECAL. Ante dudas, consulta la fuente de cada estación.</p>
       <p id="pie-meta"></p>
     </footer>
   </aside>
 
   <main class="mapa-zona">
-    <div id="mapa" role="region" aria-label="Mapa de estaciones"></div>
-    <div id="aviso-demo" class="aviso" hidden>Vista previa con estaciones de ejemplo.</div>
+    <div id="mapa" role="region" data-i18n-aria="a11y.map" aria-label="Mapa de estaciones"></div>
+    <div id="aviso-demo" class="aviso" hidden data-i18n="demo">Vista previa con estaciones de ejemplo.</div>
 
     <article id="ficha" class="ficha" aria-labelledby="ficha-nombre" hidden>
-      <button id="ficha-cerrar" class="cerrar" type="button" aria-label="Cerrar ficha">×</button>
+      <button id="ficha-cerrar" class="cerrar" type="button" data-i18n-aria="a11y.close" aria-label="Cerrar ficha">×</button>
       <div id="ficha-contenido"></div>
     </article>
   </main>
 </div>
 
+<script src="i18n.js"></script>
+<script src="shell.js"></script>
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="config.js"></script>
 <script src="data/paises.js"></script>

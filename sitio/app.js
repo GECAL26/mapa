@@ -6,11 +6,12 @@
   const DATA = (window.ESTACIONES && window.ESTACIONES.estaciones) || [];
   const META = (window.ESTACIONES && window.ESTACIONES.metadata) || {};
 
-  const TIPOS = {
-    "Calidad del aire": "#e8590c",
-    "Meteorológica": "#1c8fd6",
-    "Calidad del aire y meteorología": "#0a8783"
-  };
+  const GT = window.GT;
+  const { t, plural, cat, pais: tpais, paisTodos } = GT;
+  // Los colores salen de los tokens (claves = valor en español de los datos); se releen al cambiar de tema.
+  const TIPOS = { "Calidad del aire": "", "Meteorológica": "", "Calidad del aire y meteorología": "" };
+  const VAR_TIPO = { "Calidad del aire": "--m-aire", "Meteorológica": "--m-meteo", "Calidad del aire y meteorología": "--m-ambas" };
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   const PUBLICOS = ["Públicos, en tiempo real o casi real", "Públicos, solo históricos"];
   const ORDEN_VARS = ["MP10", "MP2.5", "MP1", "O3", "NO", "NO2", "NOx", "SO2", "CO", "CO2", "CH4", "H2S", "NH3", "COV / BTEX", "HCHO",
     "Carbono negro (BC)", "Metales en material particulado", "Temperatura", "Humedad relativa", "Presión", "Velocidad del viento",
@@ -33,36 +34,53 @@
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const urlSegura = (u) => (/^https?:\/\/[^\s"'<>]+$/i.test(u || "") ? u : "");
   const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-  const cmp = (a, b) => String(a).localeCompare(String(b), "es", { numeric: true, sensitivity: "base" });
-  const fmt = (n) => Number(n).toLocaleString("es");
+  const cmp = (a, b) => String(a).localeCompare(String(b), GT.lang, { numeric: true, sensitivity: "base" });
+  const fmt = (n) => Number(n).toLocaleString(GT.lang);
+  const subst = (s, o) => s.replace(/\{(\w+)\}/g, (m, k) => (o[k] != null ? o[k] : m));
   // Color de los puntos: por tipo de estación o por red
   let modoColor = "tipo";
   let coloresRed = {};
-  const PALETA_REDES = ["#1c8fd6", "#e8590c", "#0a8783", "#7048e8", "#d6336c", "#2f9e44", "#f08c00",
-    "#1864ab", "#9c36b5", "#5c940d", "#c92a2a"];
-  const COLOR_OTRAS = "#9aa5b4";
-  const colorDe = (e) => (modoColor === "red" ? coloresRed[e.red] || COLOR_OTRAS : TIPOS[e.tipo_estacion] || "#66748c");
+  // Dos paletas de 11 colores, una por tema, con contraste ≥ 3:1 sobre el mapa gris claro / oscuro.
+  const PALETAS_REDES = {
+    light: ["#0775b7", "#b35400", "#0d7a7a", "#6741d9", "#c2255c", "#237a35", "#8f6200", "#1864ab", "#862e9c", "#4d7c0f", "#c92a2a"],
+    dark: ["#5db9e8", "#f9a10c", "#58c5bd", "#b197fc", "#f783ac", "#8ce99a", "#ffd43b", "#74c0fc", "#e599f7", "#c0eb75", "#ff8787"]
+  };
+  let PALETA_REDES = PALETAS_REDES.light;
+  let COLOR_OTRAS = "#7b8794";
+  function refrescarColores() {
+    Object.keys(VAR_TIPO).forEach((k) => (TIPOS[k] = css(VAR_TIPO[k])));
+    PALETA_REDES = PALETAS_REDES[GT.oscuro ? "dark" : "light"];
+    COLOR_OTRAS = GT.oscuro ? "#9aa8bd" : "#5d7090";
+  }
+  refrescarColores();
+  const colorDe = (e) => (modoColor === "red" ? coloresRed[e.red] || COLOR_OTRAS : TIPOS[e.tipo_estacion] || COLOR_OTRAS);
+  // Etiqueta que se muestra de cada valor (el valor en español sigue siendo la clave del filtro).
+  const etiqueta = (k, v) => (k === "pais" ? tpais(v) : k === "red" || k === "fuente" ? v : cat(v));
+  const fechaCorta = (iso) => {
+    const d = new Date(iso + "T12:00:00");
+    return isNaN(d) ? iso : d.toLocaleDateString(GT.lang, { day: "numeric", month: "long", year: "numeric" });
+  };
   const claveLugar = (e) => e.latitud.toFixed(4) + "," + e.longitud.toFixed(4);
   const posEn = (orden) => (v) => { const i = orden.indexOf(v); return i < 0 ? 999 : i; };
 
   DATA.forEach((e, i) => {
     e._i = i;
     e.variables = [].concat(e.contaminantes || [], e.meteorologia || []);
-    e._texto = norm([e.nombre_estacion, e.localidad, e.division, e.pais, e.red, e.operador, e.codigo, e.id_gecal].join(" "));
+    e._texto = norm([e.nombre_estacion, e.localidad, e.division, paisTodos(e.pais).join(" "), e.red, e.operador, e.codigo, e.id_gecal].join(" "));
   });
 
   // ---------- filtros
   const FILTROS = [
-    { k: "tipo_estacion", t: "Qué mide", puntos: true },
-    { k: "variables", t: "Variable", orden: posEn(ORDEN_VARS), max: 12 },
-    { k: "pais", t: "País", max: 10 },
-    { k: "estado_operativo", t: "Operativa" },
-    { k: "acceso_datos", t: "Acceso a los datos" },
-    { k: "red", t: "Red", max: 8 },
-    { k: "instrumental", t: "Instrumental" },
-    { k: "frecuencia", t: "Frecuencia de registro", orden: posEn(ORDEN_FREC) },
-    { k: "entorno", t: "Entorno" },
-    { k: "fuente", t: "Fuente del registro" }
+    { k: "tipo_estacion", puntos: true },
+    { k: "variables", orden: posEn(ORDEN_VARS), max: 12 },
+    { k: "pais", max: 10 },
+    { k: "estado_operativo" },
+    { k: "acceso_datos" },
+    { k: "red", max: 8 },
+    { k: "instrumental" },
+    { k: "frecuencia", orden: posEn(ORDEN_FREC) },
+    { k: "entorno" },
+    { k: "fuente" }
   ];
   const sel = {};
   FILTROS.forEach((f) => (sel[f.k] = new Set()));
@@ -90,7 +108,7 @@
       base.forEach((e) => valores(e, f.k).forEach((v) => cnt.set(v, cnt.get(v) + 1)));
       if (!cnt.size) return;
       let ops = [...cnt.keys()];
-      ops.sort(f.orden ? (a, b) => f.orden(a) - f.orden(b) || cmp(a, b) : (a, b) => (cnt.get(b) - cnt.get(a)) || cmp(a, b));
+      ops.sort(f.orden ? (a, b) => f.orden(a) - f.orden(b) || cmp(etiqueta(f.k, a), etiqueta(f.k, b)) : (a, b) => (cnt.get(b) - cnt.get(a)) || cmp(etiqueta(f.k, a), etiqueta(f.k, b)));
       // seleccionadas siempre visibles
       const max = f.max && !expandidos.has(f.k) ? f.max : Infinity;
       const visibles = ops.filter((o, i) => i < max || sel[f.k].has(o));
@@ -98,12 +116,12 @@
 
       const g = document.createElement("div");
       g.className = "grupo";
-      g.innerHTML = `<h2>${esc(f.t)}${sel[f.k].size ? `<button class="quitar" data-quitar="${f.k}" type="button">Quitar</button>` : ""}</h2>
+      g.innerHTML = `<h2>${esc(t("f." + f.k))}${sel[f.k].size ? `<button class="quitar" data-quitar="${f.k}" type="button">${esc(t("filters.remove"))}</button>` : ""}</h2>
         <div class="fichas">${visibles.map((o) => {
           const n = cnt.get(o);
           return `<button type="button" class="chip${n ? "" : " cero"}" aria-pressed="${sel[f.k].has(o)}" data-k="${f.k}" data-v="${esc(o)}">${
-            f.puntos ? `<span class="punto" style="background:${TIPOS[o] || "#66748c"}"></span>` : ""}${esc(o)}<span class="n">${fmt(n)}</span></button>`;
-        }).join("")}${ops.length > visibles.length ? `<button type="button" class="ver-mas" data-mas="${f.k}">Ver ${ops.length - visibles.length} más</button>` : ""}</div>`;
+            f.puntos ? `<span class="punto" style="background:${TIPOS[o] || COLOR_OTRAS}"></span>` : ""}${esc(etiqueta(f.k, o))}<span class="n">${fmt(n)}</span></button>`;
+        }).join("")}${ops.length > visibles.length ? `<button type="button" class="ver-mas" data-mas="${f.k}">${esc(t("filters.more", { n: ops.length - visibles.length }))}</button>` : ""}</div>`;
       grupos.appendChild(g);
     });
     $("#btn-limpiar").hidden = !activos;
@@ -140,20 +158,26 @@
   // ---------- mapa
   const mapa = L.map("mapa", { zoomControl: false, worldCopyJump: true, preferCanvas: true });
   L.control.zoom({ position: "topleft" }).addTo(mapa);
-  const bases = {
-    "Claro": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
-      maxZoom: 16, attribution: "Mapa base © Esri" }),
-    "Satélite": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-      maxZoom: 18, attribution: "Imágenes © Esri" }),
-    "OpenStreetMap": L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }),
-    "Sin fondo": L.layerGroup()
-  };
-  bases["Claro"].addTo(mapa);
-  const capaPaises = window.PAISES_GEOJSON ? L.geoJSON(window.PAISES_GEOJSON, {
-    style: { color: "#7d8fa3", weight: 0.8, fillColor: "#ffffff", fillOpacity: 0.45 }, interactive: false
-  }).addTo(mapa) : null;
+  const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services/";
+  // El mapa gris sigue al tema: Esri publica una versión clara y una oscura.
+  const urlGris = () => ESRI + (GT.oscuro ? "Canvas/World_Dark_Gray_Base" : "Canvas/World_Light_Gray_Base") + "/MapServer/tile/{z}/{y}/{x}";
+  const capaGris = L.tileLayer(urlGris(), { maxZoom: 16, attribution: "© Esri" });
+  const capaSat = L.tileLayer(ESRI + "World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 18, attribution: "© Esri" });
+  const capaOsm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" });
+  const capaNada = L.layerGroup();
+  capaGris.addTo(mapa);
+  const estiloPaises = () => ({ color: css("--border-control"), weight: 0.8, fillColor: css("--surface-100"), fillOpacity: 0.4 });
+  const capaPaises = window.PAISES_GEOJSON ? L.geoJSON(window.PAISES_GEOJSON, { style: estiloPaises, interactive: false }).addTo(mapa) : null;
   const capaEst = L.layerGroup().addTo(mapa);
-  L.control.layers(bases, capaPaises ? { "Límites de países": capaPaises } : {}, { position: "topleft" }).addTo(mapa);
+  // El selector de capas escribe sus nombres al crearse: se rehace al cambiar de idioma.
+  let controlCapas = null;
+  function construirControlCapas() {
+    if (controlCapas) controlCapas.remove();
+    controlCapas = L.control.layers({
+      [t("base.neutral")]: capaGris, [t("base.satellite")]: capaSat, [t("base.osm")]: capaOsm, [t("base.none")]: capaNada
+    }, capaPaises ? { [t("overlay.borders")]: capaPaises } : {}, { position: "topleft" }).addTo(mapa);
+  }
+  construirControlCapas();
   L.control.scale({ imperial: false, position: "bottomright" }).addTo(mapa);
   const leyenda = L.control({ position: "bottomleft" });
   leyenda.onAdd = () => {
@@ -184,21 +208,21 @@
     const d = leyenda.getContainer();
     const items = modoColor === "red"
       ? Object.entries(coloresRed).map(([red, c]) => `<div><i style="background:${c}"></i>${esc(red)}</div>`).join("") +
-        (hayOtras ? `<div><i style="background:${COLOR_OTRAS}"></i>Otras redes</div>` : "")
-      : Object.keys(TIPOS).map((k) => `<div><i style="background:${TIPOS[k]}"></i>${esc(k)}</div>`).join("");
-    d.innerHTML = `<div class="modo" role="group" aria-label="Colorear puntos por">
-        <span>Color por</span>
-        <button type="button" data-modo="tipo" aria-pressed="${modoColor === "tipo"}">Tipo</button>
-        <button type="button" data-modo="red" aria-pressed="${modoColor === "red"}">Red</button>
+        (hayOtras ? `<div><i style="background:${COLOR_OTRAS}"></i>${esc(t("legend.other_networks"))}</div>` : "")
+      : Object.keys(TIPOS).map((k) => `<div><i style="background:${TIPOS[k]}"></i>${esc(cat(k))}</div>`).join("");
+    d.innerHTML = `<div class="modo" role="group" aria-label="${esc(t("a11y.color_by"))}">
+        <span>${esc(t("legend.color_by"))}</span>
+        <button type="button" data-modo="tipo" aria-pressed="${modoColor === "tipo"}">${esc(t("legend.type"))}</button>
+        <button type="button" data-modo="red" aria-pressed="${modoColor === "red"}">${esc(t("legend.network"))}</button>
       </div>
       <div class="items">${items}
-        <div><i class="hueco"></i>Sin confirmar que esté operativa</div>
-        <div><i class="cuenta">3</i>Varias estaciones en el mismo punto</div>
+        <div><i class="hueco"></i>${esc(t("legend.unconfirmed"))}</div>
+        <div><i class="cuenta">3</i>${esc(t("legend.shared"))}</div>
       </div>`;
   }
 
   let elegida = null;
-  const anillo = L.circleMarker([0, 0], { radius: 13, color: "#042050", weight: 2.5, fill: false, interactive: false });
+  const anillo = L.circleMarker([0, 0], { radius: 13, color: css("--ink"), weight: 2.5, fill: false, interactive: false });
 
   function pintarMarcadores() {
     capaEst.clearLayers();
@@ -215,16 +239,16 @@
       let m;
       if (g.length === 1) {
         m = L.circleMarker([e.latitud, e.longitud], {
-          radius: 6, weight: activa ? 1.4 : 2, color: activa ? "#ffffff" : col, fillColor: activa ? col : "#ffffff", fillOpacity: 0.95
+          radius: 6, weight: activa ? 1.4 : 2, color: activa ? css("--surface-100") : col, fillColor: activa ? col : css("--surface-100"), fillOpacity: 0.95
         });
         m.bindTooltip(esc(e.nombre_estacion), { direction: "top", offset: [0, -6] });
       } else {
         m = L.marker([e.latitud, e.longitud], {
           icon: L.divIcon({ className: "punto-grupo", iconSize: [22, 22],
-            html: `<span style="background:${activa ? col : "#ffffff"};color:${activa ? "#ffffff" : col};border-color:${activa ? "#ffffff" : col}">${g.length}</span>` }),
+            html: `<span style="background:${activa ? col : "var(--surface-100)"};color:${activa ? "var(--surface-100)" : col};border-color:${activa ? "var(--surface-100)" : col}">${g.length}</span>` }),
           keyboard: false
         });
-        m.bindTooltip(`${esc(e.nombre_estacion)}: ${g.length} registros en este punto`, { direction: "top", offset: [0, -10] });
+        m.bindTooltip(esc(t("tip.shared", { name: e.nombre_estacion, n: g.length })), { direction: "top", offset: [0, -10] });
       }
       m.on("click", () => abrirFicha(e, false, g));
       capaEst.addLayer(m);
@@ -245,40 +269,40 @@
     elegida = e;
     grupo = grupo || visibles.filter((x) => claveLugar(x) === claveLugar(e));
     const otros = grupo.length > 1 ? `<div class="mismo-punto">
-        <p>En este punto hay ${grupo.length} registros. Elige cuál ver:</p>
+        <p>${esc(t("ficha.same_point", { n: grupo.length }))}</p>
         <div class="fichas">${grupo.map((x) => `<button type="button" class="chip" data-i="${x._i}" aria-pressed="${x === e}">${
           esc(x.red)}${x.nombre_estacion !== e.nombre_estacion ? " — " + esc(x.nombre_estacion) : ""}</button>`).join("")}</div>
       </div>` : "";
     const url = urlSegura(e.url_datos);
     const fuenteUrl = FUENTES[e.fuente];
-    const fila = (t, v) => (v ? `<dt>${t}</dt><dd>${v}</dd>` : "");
-    const vars = (arr, c) => (arr && arr.length ? `<div class="vars">${arr.map((v) => `<span class="var ${c}">${esc(v)}</span>`).join("")}</div>` : "");
+    const fila = (k, v) => (v ? `<dt>${esc(t("ficha." + k))}</dt><dd>${v}</dd>` : "");
+    const vars = (arr, c) => (arr && arr.length ? `<div class="vars">${arr.map((v) => `<span class="var ${c}">${esc(cat(v))}</span>`).join("")}</div>` : "");
     const hayVars = (e.contaminantes || []).length || (e.meteorologia || []).length;
     $("#ficha-contenido").innerHTML = `${otros}
-      <div class="tipo"><i style="background:${colorDe(e)}"></i>${esc(e.tipo_estacion)}</div>
+      <div class="tipo"><i style="background:${colorDe(e)}"></i>${esc(cat(e.tipo_estacion))}</div>
       <h2 id="ficha-nombre">${esc(e.nombre_estacion)}</h2>
-      <p class="lugar">${esc([e.localidad, e.division, e.pais].filter(Boolean).join(", "))}</p>
-      <h3>Qué mide</h3>
+      <p class="lugar">${esc([e.localidad, e.division, tpais(e.pais)].filter(Boolean).join(", "))}</p>
+      <h3>${esc(t("ficha.measures"))}</h3>
       ${hayVars ? vars(e.contaminantes, "c") + (e.contaminantes.length && e.meteorologia.length ? "<div style='height:6px'></div>" : "") + vars(e.meteorologia, "m")
-        : `<p class="sin-dato">La fuente no detalla las variables. Si las conoces, súmalas con el formulario.</p>`}
-      <h3>Datos de la estación</h3>
+        : `<p class="sin-dato">${esc(t("ficha.no_vars"))}</p>`}
+      <h3>${esc(t("ficha.data"))}</h3>
       <dl>
-        ${fila("Red", esc(e.red))}
-        ${fila("Opera", esc(e.operador))}
-        ${fila("Código", esc(e.codigo))}
-        ${fila("Entorno", esc(e.entorno))}
-        ${fila("Instrumental", esc((e.instrumental || []).join(", ")))}
-        ${fila("Frecuencia", esc(e.frecuencia))}
-        ${fila("Mide desde", esc(e.anio_inicio || ""))}
-        ${fila("Operativa", esc(e.estado_operativo))}
-        ${fila("Datos", esc(e.acceso_datos))}
-        ${fila("Altitud", e.altitud_m != null ? esc(fmt(e.altitud_m)) + " m" : "")}
-        ${fila("Coordenadas", esc(e.latitud.toFixed(4) + ", " + e.longitud.toFixed(4)))}
+        ${fila("network", esc(e.red))}
+        ${fila("operator", esc(e.operador))}
+        ${fila("code", esc(e.codigo))}
+        ${fila("environment", esc(cat(e.entorno)))}
+        ${fila("instrument", esc((e.instrumental || []).map(cat).join(", ")))}
+        ${fila("frequency", esc(cat(e.frecuencia)))}
+        ${fila("since", esc(e.anio_inicio || ""))}
+        ${fila("operating", esc(cat(e.estado_operativo)))}
+        ${fila("access", esc(cat(e.acceso_datos)))}
+        ${fila("altitude", e.altitud_m != null ? esc(fmt(e.altitud_m)) + " m" : "")}
+        ${fila("coords", esc(e.latitud.toFixed(4) + ", " + e.longitud.toFixed(4)))}
       </dl>
-      ${url ? `<a class="boton acceso" href="${esc(url)}" target="_blank" rel="noopener noreferrer">Ir a los datos</a>` : ""}
-      <p class="pie-ficha">Registro ${esc(e.id_gecal)}${e.fuente ? ", fuente: " + (fuenteUrl
-        ? `<a href="${esc(fuenteUrl)}" target="_blank" rel="noopener noreferrer">${esc(e.fuente)}</a>` : esc(e.fuente)) : ""}${
-        e.fecha_carga ? ", actualizado el " + esc(e.fecha_carga) : ""}.</p>`;
+      ${url ? `<a class="gecal-btn gecal-btn--primary gecal-btn--sm acceso" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(t("ficha.go"))}</a>` : ""}
+      <p class="pie-ficha">${esc(t("ficha.record", { id: e.id_gecal }))}${e.fuente ? subst(esc(t("ficha.source")), { src: fuenteUrl
+        ? `<a href="${esc(fuenteUrl)}" target="_blank" rel="noopener noreferrer">${esc(e.fuente)}</a>` : esc(e.fuente) }) : ""}${
+        e.fecha_carga ? esc(t("ficha.updated", { date: fechaCorta(e.fecha_carga) })) : ""}.</p>`;
     const estabaOculta = ficha.hidden;
     ficha.hidden = false;
     if (estabaOculta) { ficha.classList.remove("entra"); void ficha.offsetWidth; ficha.classList.add("entra"); }
@@ -303,13 +327,13 @@
       if (!porPais.has(e.pais)) porPais.set(e.pais, { total: 0, tipos: {} });
       const p = porPais.get(e.pais); p.total++; p.tipos[e.tipo_estacion] = (p.tipos[e.tipo_estacion] || 0) + 1;
     });
-    const filas = [...porPais.entries()].sort((a, b) => b[1].total - a[1].total || cmp(a[0], b[0]));
+    const filas = [...porPais.entries()].sort((a, b) => b[1].total - a[1].total || cmp(tpais(a[0]), tpais(b[0])));
     const max = filas.length ? filas[0][1].total : 1;
     $("#paises").innerHTML = filas.length ? filas.map(([p, d]) => `<li><button type="button" data-pais="${esc(p)}" aria-pressed="${sel.pais.has(p)}">
-      <span class="nombre">${esc(p)}</span><span class="total">${fmt(d.total)}</span>
-      <span class="barra-pais" style="width:${Math.max(4, 100 * d.total / max)}%">${Object.keys(TIPOS).map((t) =>
-        d.tipos[t] ? `<span style="width:${100 * d.tipos[t] / d.total}%;background:${TIPOS[t]}" title="${esc(t)}: ${d.tipos[t]}"></span>` : "").join("")}</span>
-      </button></li>`).join("") : `<li class="vacio">Ningún país coincide con los filtros.</li>`;
+      <span class="nombre">${esc(tpais(p))}</span><span class="total">${fmt(d.total)}</span>
+      <span class="barra-pais" style="width:${Math.max(4, 100 * d.total / max)}%">${Object.keys(TIPOS).map((tt) =>
+        d.tipos[tt] ? `<span style="width:${100 * d.tipos[tt] / d.total}%;background:${TIPOS[tt]}" title="${esc(cat(tt))}: ${d.tipos[tt]}"></span>` : "").join("")}</span>
+      </button></li>`).join("") : `<li class="vacio">${esc(t("countries.none"))}</li>`;
   }
   $("#paises").addEventListener("click", (ev) => {
     const b = ev.target.closest("button[data-pais]"); if (!b) return;
@@ -325,14 +349,14 @@
   const PASO = 150;
   let mostrar = PASO;
   function pintarLista(lista) {
-    const ord = lista.slice().sort((a, b) => cmp(a.pais, b.pais) || cmp(a.nombre_estacion, b.nombre_estacion));
+    const ord = lista.slice().sort((a, b) => cmp(tpais(a.pais), tpais(b.pais)) || cmp(a.nombre_estacion, b.nombre_estacion));
     $("#lista").innerHTML = ord.length ? ord.slice(0, mostrar).map((e) => `<li><button type="button" data-i="${e._i}">
       <span class="punto" style="background:${colorDe(e)}"></span><span class="nombre">${esc(e.nombre_estacion)}</span>
-      <span class="lugar">${esc([e.localidad, e.pais].filter(Boolean).join(", "))}${e.red ? " — " + esc(e.red) : ""}</span></button></li>`).join("")
-      : `<li class="vacio">${DATA.length ? "Ninguna estación coincide con los filtros." : "Todavía no hay estaciones publicadas."}</li>`;
+      <span class="lugar">${esc([e.localidad, tpais(e.pais)].filter(Boolean).join(", "))}${e.red ? " — " + esc(e.red) : ""}</span></button></li>`).join("")
+      : `<li class="vacio">${esc(t(DATA.length ? "list.empty_filters" : "list.empty_data"))}</li>`;
     const resto = ord.length - mostrar;
     $("#btn-mas").hidden = resto <= 0;
-    $("#btn-mas").textContent = `Mostrar ${fmt(Math.min(PASO, resto))} más de ${fmt(resto)}`;
+    $("#btn-mas").textContent = t("list.more", { a: fmt(Math.min(PASO, resto)), b: fmt(resto) });
   }
   $("#lista").addEventListener("click", (ev) => {
     const b = ev.target.closest("button[data-i]"); if (!b) return;
@@ -350,8 +374,9 @@
     const nP = new Set(visibles.map((e) => e.pais)).size;
     const nR = new Set(visibles.map((e) => e.red)).size;
     $("#resumen").innerHTML = DATA.length
-      ? `<strong>${fmt(visibles.length)}</strong> ${visibles.length === 1 ? "estación" : "estaciones"} en ${fmt(nP)} ${nP === 1 ? "país" : "países"} y ${fmt(nR)} ${nR === 1 ? "red" : "redes"}`
-      : "Todavía no hay estaciones publicadas";
+      ? esc(t("summary.pattern")).replace("{st}", `<strong>${fmt(visibles.length)}</strong> ${esc(plural("n.station", visibles.length))}`)
+          .replace("{co}", `${fmt(nP)} ${esc(plural("n.country", nP))}`).replace("{ne}", `${fmt(nR)} ${esc(plural("n.network", nR))}`)
+      : esc(t("summary.none"));
     mostrar = PASO;
     pintarFiltros();
     pintarPaises(visibles);
@@ -377,15 +402,15 @@
   }
   $("#btn-csv").addEventListener("click", async (ev) => {
     const texto = csv(visibles);
-    const btn = ev.currentTarget; const orig = btn.textContent;
+    const btn = ev.currentTarget; const orig = t("list.csv");
     try {
       const a = document.createElement("a");
       a.href = URL.createObjectURL(new Blob([texto], { type: "text/csv;charset=utf-8" }));
       a.download = "estaciones_gecal.csv"; document.body.appendChild(a); a.click(); a.remove();
     } catch (e) { /* descarga bloqueada */ }
     if (window.self !== window.top) {
-      try { await navigator.clipboard.writeText(texto); btn.textContent = "Copiado al portapapeles"; }
-      catch (e) { btn.textContent = "No se pudo descargar aquí"; }
+      try { await navigator.clipboard.writeText(texto); btn.textContent = t("csv.copied"); }
+      catch (e) { btn.textContent = t("csv.failed"); }
       setTimeout(() => (btn.textContent = orig), 2500);
     }
   });
@@ -393,15 +418,35 @@
   // ---------- encabezado y pie
   const bf = $("#btn-form");
   if (urlSegura(CFG.formUrl)) bf.href = CFG.formUrl;
-  else { bf.setAttribute("aria-disabled", "true"); bf.title = "Falta configurar formUrl en config.js"; }
+  else bf.setAttribute("aria-disabled", "true");
   if (urlSegura(CFG.contribuirUrl)) { const lr = $("#link-red"); lr.href = CFG.contribuirUrl; lr.hidden = false; }
   if (CFG.avisoDemo) $("#aviso-demo").hidden = false;
   const externas = (META.fuentes || []).filter((f) => FUENTES[f]);
-  $("#pie-meta").innerHTML = [
-    META.generado ? "Actualizado el " + esc(new Date(META.generado).toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" })) + "." : "",
-    externas.length ? "Incluye registros de " + externas.map((f) => `<a href="${esc(FUENTES[f])}" target="_blank" rel="noopener noreferrer">${esc(f)}</a>`).join(", ") + "." : "",
-    CFG.contacto ? "Contacto: " + esc(CFG.contacto) + "." : ""
-  ].filter(Boolean).join(" ");
+  function pintarPie() {
+    if (!urlSegura(CFG.formUrl)) bf.title = t("add_station.missing");
+    $("#pie-meta").innerHTML = [
+      META.generado ? esc(t("foot.updated", { date: new Date(META.generado).toLocaleDateString(GT.lang, { day: "numeric", month: "long", year: "numeric" }) })) : "",
+      externas.length ? esc(t("foot.includes", { list: "\u0001" })).replace("\u0001",
+        externas.map((f) => `<a href="${esc(FUENTES[f])}" target="_blank" rel="noopener noreferrer">${esc(f)}</a>`).join(", ")) : "",
+      CFG.contacto ? esc(t("foot.contact", { c: CFG.contacto })) : ""
+    ].filter(Boolean).join(" ");
+  }
 
+  // ---------- idioma y tema: se vuelve a pintar todo lo que genera este archivo
+  GT.alIdioma(() => {
+    construirControlCapas();
+    pintarPie();
+    actualizar();
+    if (elegida) abrirFicha(elegida, false, fichaGrupo, true);
+  });
+  GT.alTema(() => {
+    refrescarColores();
+    capaGris.setUrl(urlGris());
+    if (capaPaises) capaPaises.setStyle(estiloPaises());
+    anillo.setStyle({ color: css("--ink") });
+    repintarColores();
+  });
+
+  pintarPie();
   actualizar();
 })();

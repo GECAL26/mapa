@@ -24,7 +24,7 @@ Google Form ──► Hoja "Respuestas" ──(revisión)──► pestaña "pub
 | `CONTRIBUIR.md` | Guía para sumar estaciones: formulario, plantilla CSV para redes completas o importador |
 | `plantillas/` | `plantilla_red.csv` (vacía) y `ejemplo_red.csv` (con errores típicos para probar `--revisar`) |
 | `formulario/avisos.gs` | Apps Script opcional: mail al equipo revisor con cada carga nueva |
-| `sitio/` | Sitio estático: `index.html`, `app.js`, `styles.css`, `config.js`, `img/` (logo y favicon de GECAL), `data/`, `vendor/leaflet/` |
+| `sitio/` | Sitio estático: `index.html`, `app.js`, `styles.css`, `config.js`, `i18n.js` y `shell.js` (idiomas y tema), `css/` (tokens y fuentes del sistema de diseño de GECAL), `fonts/`, `img/` (logo y favicon de GECAL), `data/`, `vendor/leaflet/` |
 | `.github/workflows/deploy-pages.yml` | Publica `sitio/` en GitHub Pages en cada push a `main` |
 | `.github/workflows/actualizar-datos.yml` | Opcional: baja la pestaña "publicadas" todos los días, valida y publica |
 
@@ -154,6 +154,27 @@ Ver [CONTRIBUIR.md](CONTRIBUIR.md). Una planilla completada se valida con
   elegir cada registro.
 - La leyenda permite colorear los puntos por tipo de estación o por red (las 11 redes con más
   estaciones visibles tienen color propio; el resto, gris).
+
+## Diseño, idiomas y tema
+
+- **Diseño:** el sitio usa el sistema de diseño de GECAL, igual que <https://gecal26.github.io/>.
+  `sitio/css/tokens.css` y `sitio/css/fonts.css` son una copia de `static/css/` de
+  [GECAL26/gecal26.github.io](https://github.com/GECAL26/gecal26.github.io) (se generan allí desde
+  `design/tokens.json`); los woff2 de `sitio/fonts/` (Montserrat y Source Sans 3, licencia OFL) también.
+  **No se editan aquí**: si cambia el diseño, se vuelven a copiar. Los únicos colores propios son los tres
+  de tipo de estación (`--m-aire`, `--m-meteo`, `--m-ambas` en `styles.css`), ajustados para tener al
+  menos 3:1 sobre el mapa gris de Esri en el tema claro y en el oscuro.
+- **Idiomas:** español, portugués, francés e inglés, en ese orden. Se elige con el menú **ES / PT / FR / EN**
+  o con `?lang=pt`; si no, se usa el idioma guardado o el del navegador, y si no coincide, español.
+  Los textos están en `sitio/i18n.js`. Los datos de estaciones **siguen en español**
+  (son también las claves de filtros y colores): `i18n.js` solo traduce lo que se muestra
+  (`cat`: tipos, variables, frecuencias…; `pais`: nombres de países). Nombres de estaciones, localidades,
+  redes y operadores no se traducen. Si aparece un valor nuevo en los datos (otra variable, otro entorno),
+  se muestra en español hasta agregarlo a `cat` en los tres idiomas. El CSV descargado usa los valores originales.
+- **Tema:** Sistema / Claro / Oscuro. El mapa gris cambia a la versión oscura de Esri.
+- Idioma y tema se guardan con las mismas claves (`gecal-lang`, `gecal-theme`) que la web principal. Como
+  ambas viven en `gecal26.github.io`, quien ya eligió una opción allí la encuentra aquí.
+- Pendiente: el formulario de carga (Google Form) y `CONTRIBUIR.md` siguen en español.
 
 ## 4. Ver el sitio localmente
 

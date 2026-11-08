@@ -24,6 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # GitHub Pages guarda cada archivo ~10 min: sin esto, quien tenga el CSS viejo y reciba el HTML nuevo ve el sitio roto.
+      - name: Versionar CSS y JS
+        run: sed -i -E "s#((href|src)=\"[^\":]+\\.(css|js))\"#\\1?v=${GITHUB_SHA::8}\"#g" sitio/index.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: sitio
