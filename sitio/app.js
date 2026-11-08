@@ -25,6 +25,7 @@
     "CETESB": "https://qualar.cetesb.sp.gov.br/qualar/home.do",
     "MonitorAr-Rio": "https://www.data.rio/",
     "SENAMHI": "https://www.senamhi.gob.pe/",
+    "SIATA": "https://datos.siata.gov.co/",
     "NOAA ISD": "https://www.ncei.noaa.gov/products/land-based-station/integrated-surface-database",
     "OpenAQ": "https://openaq.org/"
   };

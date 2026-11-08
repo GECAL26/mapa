@@ -45,7 +45,7 @@ IMPORTADAS = DATA / "importadas"
 # Orden de prioridad de los catálogos importados: cuando dos fuentes describen la misma
 # estación (misma clase de medición y a <200 m, o mismo nombre a <3 km) se queda la primera.
 # Las fuentes más detalladas van primero. Las que no figuran acá se procesan al final.
-PRIORIDAD = ["relevamiento_gecal", "mira_chile", "vismet", "sinaica", "cetesb", "monitorar", "senamhi",
+PRIORIDAD = ["relevamiento_gecal", "mira_chile", "vismet", "sinaica", "cetesb", "monitorar", "senamhi", "siata",
              "openaq", "sinca", "noaa_isd"]
 DIST_SUPERADA_M = 200
 DIST_SUPERADA_NOMBRE_M = 3000
@@ -372,7 +372,10 @@ def procesar(filas: list[dict], fuente_defecto: str = FUENTE_FORM, vistas: list[
                 mismo_nombre = mi_nombre == norm(previa["nombre_estacion"])
                 misma_clase = mis_clases <= clases(previa["tipo_estacion"])
                 # mismo nombre y casi el mismo punto: es la misma estación aunque cada fuente liste otras variables
-                ambas_meteo = mis_clases == {"meteo"} == clases(previa["tipo_estacion"])
+                # dos solo meteorológicas a <1,5 km son la misma solo si comparten alguna variable: sin ese dato
+                # (o con variables distintas) vale el criterio de 200 m, p. ej. un pluviómetro a 700 m de un aeropuerto
+                ambas_meteo = mis_clases == {"meteo"} == clases(previa["tipo_estacion"]) and bool(
+                    set(vars_) & set(previa["meteorologia"]))
                 if (mismo_nombre and d < DIST_SUPERADA_M) or (ambas_meteo and d < DIST_SUPERADA_METEO_M) or (misma_clase and (
                         d < DIST_SUPERADA_M or (mismo_nombre and d < DIST_SUPERADA_NOMBRE_M))):
                     gana = previa

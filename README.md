@@ -18,6 +18,7 @@ Google Form ──► Hoja "Respuestas" ──(revisión)──► pestaña "pub
 | `scripts/actualizar_catalogo.py` | Valida las estaciones aprobadas, les suma los catálogos importados y genera `sitio/data/estaciones.{csv,js}` (solo biblioteca estándar) |
 | `scripts/importar_mira_chile.py` | Convierte el catálogo de MIRA Chile a `sitio/data/importadas/mira_chile.csv` |
 | `scripts/importar_vismet.py` | Inventario nacional de estaciones meteorológicas de Chile desde VISMET / CR2 (DGA, DMC, AGROMET, CEAZA, REDMETEO…) |
+| `scripts/importar_siata.py` | Estaciones de calidad del aire y meteorología de SIATA (Valle de Aburrá, Antioquia) desde su repositorio de datos: ubicación, variables y fechas, sin los datos medidos |
 | `scripts/importar_openaq.py` | Importa estaciones de referencia de LAC desde OpenAQ (requiere API key gratuita) |
 | `sitio/data/importadas/relevamiento_gecal.csv` | Estaciones cargadas a mano por GECAL; cada una con su fuente en `relevamiento_gecal.FUENTES.md` |
 | `scripts/importar_fuentes_abiertas.py` | Convierte catálogos abiertos (SINAICA, SINCA, CETESB, MonitorAr, SENAMHI, NOAA ISD) a `sitio/data/importadas/` |
@@ -25,6 +26,7 @@ Google Form ──► Hoja "Respuestas" ──(revisión)──► pestaña "pub
 | `plantillas/` | `plantilla_red.csv` (vacía) y `ejemplo_red.csv` (con errores típicos para probar `--revisar`) |
 | `formulario/avisos.gs` | Apps Script opcional: mail al equipo revisor con cada carga nueva |
 | `sitio/` | Sitio estático: `index.html`, `app.js`, `styles.css`, `config.js`, `i18n.js` y `shell.js` (idiomas y tema), `css/` (tokens y fuentes del sistema de diseño de GECAL), `fonts/`, `img/` (logo y favicon de GECAL), `data/`, `vendor/leaflet/` |
+| `.github/workflows/actualizar-importadas.yml` | Cada mes baja SIATA, regenera el catálogo y abre un pull request (ver «SIATA y actualización automática») |
 | `.github/workflows/deploy-pages.yml` | Publica `sitio/` en GitHub Pages en cada push a `main` |
 | `.github/workflows/actualizar-datos.yml` | Opcional: baja la pestaña "publicadas" todos los días, valida y publica |
 
@@ -96,6 +98,7 @@ enlace = guía de descarga de la red en el repositorio de MIRA Chile.
 | CETESB QUALAR | Brasil (São Paulo) | 75 | Calidad del aire | `ropensci/qualR` |
 | MonitorAr-Rio | Brasil (Rio de Janeiro) | 8 | Calidad del aire y meteorología | `ropensci/qualR` |
 | SENAMHI | Perú (Lima) | 18 | Calidad del aire y meteorológicas automáticas | `quishqa/limaair` |
+| SIATA | Colombia (Valle de Aburrá y Antioquia) | 291 | 43 de calidad del aire (con variables y fechas) y 248 meteorológicas (lluvia, radiación solar, estaciones completas) | Repositorio de Datos SIATA (`importar_siata.py`) |
 | MIRA Chile | Chile (Arica a Atacama) | 862 | Meteorológicas y de calidad del aire, con variables y estado | `suraurora/mira-chile` (`importar_mira_chile.py`) |
 | VISMET / CR2 | Chile (todo el país) | 1555 (+345 ya en MIRA) | Meteorológicas de DGA, DMC, AGROMET, CEAZA, REDMETEO, SERVIMET, UFRO y CR2 | API pública de VISMET (`importar_vismet.py`) |
 | SINCA (MMA) | Chile | 51 que no están en OpenAQ ni MIRA | Calidad del aire (tabla histórica, sin variables ni estado) | `franciscoxaxo/AtmChile` (GPL-3) |
@@ -126,17 +129,43 @@ Necesita una clave gratuita de https://explore.openaq.org: `export OPENAQ_API_KE
 Las correcciones a errores de las fuentes y las estaciones omitidas están listadas, con su
 motivo, al principio de `importar_fuentes_abiertas.py`.
 
+### SIATA y actualización automática
+
+`scripts/importar_siata.py` usa la API pública del [Repositorio de Datos SIATA](https://datos.siata.gov.co/)
+(Dataverse, sin clave) y solo toma **ubicación, variables y fechas**, nunca los datos medidos:
+
+- **Calidad del aire (43):** tablas «Estaciones_calidad_aire» y «Fechas_monitoreo_calidad_aire» del dataset
+  «Información de la Red de Calidad del Aire». Variables: PM2.5, PM10, O3, SO2, CO y NOx (esas tablas no traen NO ni NO2).
+  Operativa = alguna variable sin fecha de suspensión; si no, «No (discontinuada)».
+- **Meteorología (248):** una estación por dataset en las colecciones Meteorológica, Pluviométrica (precipitación),
+  Disdrómetro (precipitación) y Piranómetro (radiación solar). El punto sale del cuadro geográfico del dataset y el año de
+  inicio del primer archivo mensual. Las estaciones meteorológicas completas no declaran sus variables, así que quedan sin ellas.
+  Se omiten las que no tienen ubicación o archivos. «Sí» solo si el último archivo mensual tiene menos de 3 meses
+  (los datos publicados de la mayoría terminan meses atrás, y el mapa las muestra como «sin confirmar que esté operativa»).
+- Se omiten Nivel y Velocidad Superficial Cauces (hidrología).
+- Crédito: SIATA / Área Metropolitana del Valle de Aburrá, con enlace al repositorio en cada ficha.
+  Los términos de uso del repositorio están en borrador (V1) y piden citar la fuente; la licencia aún figura como «XXXX».
+
+**Cada mes** (día 1, 09:17 UTC) el workflow `actualizar-importadas.yml` corre el importador y `actualizar_catalogo.py --solo-importadas`,
+sube la rama `bot/actualizar-importadas` y abre (o actualiza) **un pull request**; nunca sube directo a `main`.
+Al fusionarlo, `deploy-pages.yml` publica el sitio. Es mensual y no semestral porque GitHub apaga los workflows programados de
+un repositorio público tras 60 días sin actividad. Si falla, abre un *issue* y menciona a quien mantiene el repo.
+Requisitos únicos: Settings → Actions → General → **Allow GitHub Actions to create and approve pull requests**.
+El workflow se detiene si `estaciones.csv` trae estaciones del formulario, porque regenera solo desde `importadas/` y las borraría.
+Para correrlo a mano: pestaña Actions → «Actualizar catálogos importados» → Run workflow, o `python3 scripts/importar_siata.py`
+(el servidor de SIATA a veces tarda o se cuelga: el script reintenta cada consulta y tarda unos 25 minutos).
+
 ### Prioridad entre fuentes
 
 Varias fuentes describen la misma estación (por ejemplo, una estación del SINCA aparece en MIRA
 Chile y en la tabla del SINCA). `actualizar_catalogo.py` procesa los catálogos en el orden de
-`PRIORIDAD` (MIRA Chile, VISMET, SINAICA, CETESB, MonitorAr, SENAMHI, OpenAQ, SINCA, NOAA ISD)
+`PRIORIDAD` (MIRA Chile, VISMET, SINAICA, CETESB, MonitorAr, SENAMHI, SIATA, OpenAQ, SINCA, NOAA ISD)
 y descarta una estación si ya la cargó una fuente anterior. Se considera la misma
 estación cuando:
 
 - tienen el mismo nombre y están a menos de 200 m;
 - miden lo mismo (o la anterior mide más) y están a menos de 200 m, o a menos de 3 km con el mismo nombre;
-- las dos son solo meteorológicas y están a menos de 1,5 km (el mismo aeropuerto en NOAA ISD y en otra red).
+- las dos son solo meteorológicas, están a menos de 1,5 km y comparten alguna variable (el mismo aeropuerto en NOAA ISD y en otra red). Sin variables en común, o si una fuente no las declara, vale el criterio de 200 m: así un pluviómetro de SIATA a 700 m del aeropuerto Olaya Herrera no hace desaparecer la estación del aeropuerto.
 
 El script informa cuántas descartó de cada fuente. Las estaciones del formulario nunca se descartan
 solas: si parecen duplicadas, se avisa para revisarlas.
