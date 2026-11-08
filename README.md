@@ -98,7 +98,7 @@ enlace = guía de descarga de la red en el repositorio de MIRA Chile.
 | CETESB QUALAR | Brasil (São Paulo) | 75 | Calidad del aire | `ropensci/qualR` |
 | MonitorAr-Rio | Brasil (Rio de Janeiro) | 8 | Calidad del aire y meteorología | `ropensci/qualR` |
 | SENAMHI | Perú (Lima) | 18 | Calidad del aire y meteorológicas automáticas | `quishqa/limaair` |
-| SIATA | Colombia (Valle de Aburrá y Antioquia) | 291 | 43 de calidad del aire (con variables y fechas) y 248 meteorológicas (lluvia, radiación solar, estaciones completas) | Repositorio de Datos SIATA (`importar_siata.py`) |
+| SIATA | Colombia (Valle de Aburrá y Antioquia) | 303 | 43 de calidad del aire (con variables y fechas) y 260 meteorológicas (lluvia, radiación solar, estaciones completas) | Repositorio de Datos SIATA (`importar_siata.py`) |
 | MIRA Chile | Chile (Arica a Atacama) | 862 | Meteorológicas y de calidad del aire, con variables y estado | `suraurora/mira-chile` (`importar_mira_chile.py`) |
 | VISMET / CR2 | Chile (todo el país) | 1555 (+345 ya en MIRA) | Meteorológicas de DGA, DMC, AGROMET, CEAZA, REDMETEO, SERVIMET, UFRO y CR2 | API pública de VISMET (`importar_vismet.py`) |
 | SINCA (MMA) | Chile | 51 que no están en OpenAQ ni MIRA | Calidad del aire (tabla histórica, sin variables ni estado) | `franciscoxaxo/AtmChile` (GPL-3) |
@@ -137,11 +137,13 @@ motivo, al principio de `importar_fuentes_abiertas.py`.
 - **Calidad del aire (43):** tablas «Estaciones_calidad_aire» y «Fechas_monitoreo_calidad_aire» del dataset
   «Información de la Red de Calidad del Aire». Variables: PM2.5, PM10, O3, SO2, CO y NOx (esas tablas no traen NO ni NO2).
   Operativa = alguna variable sin fecha de suspensión; si no, «No (discontinuada)».
-- **Meteorología (248):** una estación por dataset en las colecciones Meteorológica, Pluviométrica (precipitación),
-  Disdrómetro (precipitación) y Piranómetro (radiación solar). El punto sale del cuadro geográfico del dataset y el año de
-  inicio del primer archivo mensual. Las estaciones meteorológicas completas no declaran sus variables, así que quedan sin ellas.
-  Se omiten las que no tienen ubicación o archivos. «Sí» solo si el último archivo mensual tiene menos de 3 meses
-  (los datos publicados de la mayoría terminan meses atrás, y el mapa las muestra como «sin confirmar que esté operativa»).
+- **Meteorología (260):** las colecciones Meteorológica, Pluviométrica (precipitación), Disdrómetro (precipitación) y
+  Piranómetro (radiación solar). Cada una trae su tabla de estaciones («Información de la Red…»): de ahí salen la ubicación,
+  el municipio y el año de instalación. Los datasets mensuales de cada estación dan el último mes publicado: «Sí» solo si
+  tiene menos de 3 meses; si es más viejo, «sin datos recientes» (los datos publicados de la mayoría terminan meses atrás y
+  el mapa las muestra como «sin confirmar que esté operativa»); sin dataset, «No sé». Las estaciones meteorológicas
+  completas no declaran sus variables, así que quedan sin ellas. Los datasets de estaciones nuevas que todavía no figuran
+  en la tabla de su red (hoy 7 pluviómetros) se omiten y entran solos cuando SIATA la actualice.
 - Se omiten Nivel y Velocidad Superficial Cauces (hidrología).
 - Crédito: SIATA / Área Metropolitana del Valle de Aburrá, con enlace al repositorio en cada ficha.
   Los términos de uso del repositorio están en borrador (V1) y piden citar la fuente; la licencia aún figura como «XXXX».
