@@ -20,6 +20,7 @@ concurrency:
 env:
   GH_TOKEN: ${{ github.token }}
   rama: bot/actualizar-importadas
+  avisar: "@Duvancho321 @GECAL26 @anibianco"
 
 defaults:
   run:
@@ -73,7 +74,7 @@ jobs:
         if: failure()
         run: |
           titulo="Falló la actualización automática de catálogos"
-          cuerpo="@Duvancho321 la ejecución falló: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          cuerpo="$avisar la ejecución falló: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
 
           Si el error dice que Actions no puede crear pull requests, activa Settings → Actions → General → Allow GitHub Actions to create and approve pull requests; la rama $rama ya queda subida. Se puede volver a ejecutar a mano desde la pestaña Actions."
           abierto="$(gh issue list --state open --search "$titulo in:title" --json number --jq '.[0].number')"
