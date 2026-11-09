@@ -1,0 +1,85 @@
+name: Actualizar catálogos importados
+
+# Cada mes baja los catálogos de las redes que se importan solas, regenera el catálogo del mapa y abre
+# un pull request (no sube directo a main). Mensual y no semestral porque GitHub apaga los workflows
+# programados de un repositorio público tras 60 días sin actividad.
+on:
+  schedule:
+    - cron: "17 9 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: actualizar-importadas
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  rama: bot/actualizar-importadas
+  avisar: "@Duvancho321 @GECAL26 @anibianco"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comprobar que el catálogo no incluye estaciones del formulario
+        run: |
+          if grep -q "Formulario GECAL" sitio/data/estaciones.csv; then
+            echo "estaciones.csv tiene estaciones del formulario; este flujo regenera solo desde sitio/data/importadas y las borraría." >&2
+            exit 1
+          fi
+
+      - name: Importar SIATA
+        run: python3 scripts/importar_siata.py | tee "$RUNNER_TEMP/resumen.md"
+
+      - name: Regenerar el catálogo
+        run: python3 scripts/actualizar_catalogo.py --solo-importadas | tee "$RUNNER_TEMP/catalogo.txt"
+
+      - name: Abrir o actualizar el pull request
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$rama"
+          git add sitio/data
+          if git diff --cached --quiet; then
+            echo "Sin cambios que publicar."
+            exit 0
+          fi
+          git commit -m "Catálogos importados: actualización de SIATA ($(date +%F))"
+          git push --force origin "$rama"
+          {
+            cat "$RUNNER_TEMP/resumen.md"
+            printf '\n\nCatálogo regenerado:\n\n```\n'
+            head -n 3 "$RUNNER_TEMP/catalogo.txt"
+            printf '```\n\nFuente: SIATA, Repositorio de Datos (https://datos.siata.gov.co/). Solo se importan ubicación, variables y fechas, no los datos.\n'
+          } > "$RUNNER_TEMP/cuerpo.md"
+          if [ "$(gh pr view "$rama" --json state --jq .state 2>/dev/null)" = "OPEN" ]; then
+            gh pr edit "$rama" --body-file "$RUNNER_TEMP/cuerpo.md"
+          else
+            gh pr create --base main --head "$rama" --title "Actualizar estaciones de SIATA ($(date +%F))" --body-file "$RUNNER_TEMP/cuerpo.md"
+          fi
+
+      - name: Avisar si falla
+        if: failure()
+        run: |
+          titulo="Falló la actualización automática de catálogos"
+          cuerpo="$avisar la ejecución falló: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+
+          Si el error dice que Actions no puede crear pull requests, activa Settings → Actions → General → Allow GitHub Actions to create and approve pull requests; la rama $rama ya queda subida. Se puede volver a ejecutar a mano desde la pestaña Actions."
+          abierto="$(gh issue list --state open --search "$titulo in:title" --json number --jq '.[0].number')"
+          if [ -z "$abierto" ]; then
+            gh issue create --title "$titulo" --body "$cuerpo"
+          else
+            gh issue comment "$abierto" --body "$cuerpo"
+          fi
